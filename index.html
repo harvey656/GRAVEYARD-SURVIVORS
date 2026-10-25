@@ -1,0 +1,2655 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="theme-color" content="#090d0a">
+    <meta name="description" content="Graveyard Survivors: Blood & Relics">
+    <link rel="manifest" href="./manifest.webmanifest">
+    <link rel="icon" href="./icons/icon.svg" type="image/svg+xml">
+    <title>Graveyard Survivors: Blood & Relics</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@700;900&family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+    <style>
+        * {
+            user-select: none;
+            -webkit-user-select: none;
+            box-sizing: border-box;
+        }
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #090d0a;
+            font-family: 'Inter', sans-serif;
+            color: #f3f4f6;
+        }
+        .font-gothic {
+            font-family: 'Cinzel', serif;
+        }
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+            image-rendering: pixelated;
+        }
+        /* Controller Focus Ring & Animation */
+        .nav-focus {
+            outline: 3px solid #f59e0b !important;
+            outline-offset: 2px;
+            transform: scale(1.03);
+            box-shadow: 0 0 25px rgba(245, 158, 11, 0.55) !important;
+            border-color: #fbbf24 !important;
+            z-index: 20;
+        }
+        .card-transition {
+            transition: all 0.14s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #111827;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #4b5563;
+            border-radius: 3px;
+        }
+        @keyframes pulseGlow {
+            0%, 100% { filter: drop-shadow(0 0 8px rgba(251, 191, 36, 0.6)); }
+            50% { filter: drop-shadow(0 0 18px rgba(245, 158, 11, 1)); }
+        }
+        .chest-glow {
+            animation: pulseGlow 1.5s infinite ease-in-out;
+        }
+    
+        html, body { overscroll-behavior: none; }
+        body { padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); }
+        #pwaFullscreenBtn { position:fixed; right:10px; bottom:10px; z-index:100; padding:9px 12px; border:1px solid #92400e; border-radius:10px; background:#111827e8; color:#fbbf24; font:700 12px Inter,sans-serif; }
+        @media (display-mode: standalone) { #pwaFullscreenBtn { opacity:.72; } }
+    </style>
+</head>
+<body class="relative w-screen h-screen overflow-hidden select-none">
+
+    <!-- MAIN GAME CANVAS -->
+    <canvas id="gameCanvas"></canvas>
+
+    <!-- IN-GAME HUD -->
+    <div id="hud" class="hidden absolute inset-0 pointer-events-none flex flex-col justify-between p-3 sm:p-5 z-10">
+        <!-- Top Bars: XP & HP + Inventory Icons -->
+        <div class="w-full flex flex-col gap-1.5">
+            <!-- XP Bar -->
+            <div class="w-full h-5 bg-gray-950/90 border-2 border-indigo-900/80 rounded-full overflow-hidden relative shadow-lg">
+                <div id="xpBarFill" class="h-full bg-gradient-to-r from-blue-600 via-indigo-500 to-cyan-400 transition-all duration-150" style="width: 0%"></div>
+                <div class="absolute inset-0 flex items-center justify-between px-3 text-[11px] font-extrabold tracking-wider text-white drop-shadow">
+                    <span id="hudLevelText">LV 1</span>
+                    <span id="hudModeBadge" class="text-amber-300 uppercase">Standard Graveyard</span>
+                    <span id="hudXpText">0 / 10 XP</span>
+                </div>
+            </div>
+
+            <!-- Second Row: Top-Left Slots & Top-Right Stats -->
+            <div class="flex justify-between items-start mt-1">
+                <!-- Left: Weapons & Passives Icons Only + Compact HP Bar -->
+                <div class="flex flex-col gap-1.5">
+                    <!-- HP Bar -->
+                    <div class="w-52 sm:w-64 h-4 bg-gray-950/90 border border-red-900 rounded-md overflow-hidden relative shadow">
+                        <div id="hpBarFill" class="h-full bg-gradient-to-r from-red-700 via-red-500 to-rose-400 transition-all duration-100" style="width: 100%"></div>
+                        <div id="hudHpText" class="absolute inset-0 flex items-center justify-center text-[10px] font-bold text-white drop-shadow">100 / 100</div>
+                    </div>
+
+                    <!-- 6 Weapons Row -->
+                    <div id="hudWeapons" class="flex items-center gap-1.5"></div>
+                    <!-- 6 Passives Row -->
+                    <div id="hudPassives" class="flex items-center gap-1.5"></div>
+                </div>
+
+                <!-- Center: Timer & Boss Alert -->
+                <div class="flex flex-col items-center">
+                    <div id="hudTimer" class="font-gothic text-2xl sm:text-4xl font-black tracking-widest text-gray-100 drop-shadow-[0_2px_6px_rgba(0,0,0,0.9)]">00:00</div>
+                    <div id="bossWarning" class="hidden mt-1 px-3 py-0.5 rounded bg-red-900/90 border border-red-400 text-red-100 text-xs font-extrabold uppercase tracking-widest animate-pulse">
+                        ⚠ Graveyard Lord Approaching ⚠
+                    </div>
+                </div>
+
+                <!-- Right: Gold, Kills & Controller Indicator -->
+                <div class="flex flex-col items-end gap-1 bg-gray-950/75 border border-gray-800 px-3 py-2 rounded-xl backdrop-blur-sm">
+                    <div class="flex items-center gap-1.5 text-amber-400 font-extrabold text-sm sm:text-base">
+                        <span>🪙</span>
+                        <span id="hudCoins">0</span>
+                    </div>
+                    <div class="flex items-center gap-1.5 text-red-400 font-bold text-xs sm:text-sm">
+                        <span>💀</span>
+                        <span id="hudKills">0</span>
+                    </div>
+                    <div id="hudAimMode" class="text-[10px] text-emerald-400 font-semibold tracking-tight">Aim: Directional</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Bottom Controller / Input Bar -->
+        <div class="w-full flex justify-between items-end">
+            <div id="gamepadStatusBadge" class="px-3 py-1.5 rounded-lg bg-gray-950/85 border border-gray-800 text-xs text-gray-300 flex items-center gap-2">
+                <span id="gpDot" class="w-2.5 h-2.5 rounded-full bg-amber-500"></span>
+                <span id="gpText">WASD / Arrows + Mouse | Connect X-Input or D-Input Gamepad</span>
+            </div>
+            <button id="pauseBtnHud" class="pointer-events-auto px-3 py-1.5 rounded-lg bg-gray-900/90 hover:bg-gray-800 border border-gray-700 text-xs font-bold text-gray-200">
+                PAUSE (START / ESC)
+            </button>
+        </div>
+    </div>
+
+    <!-- MAIN MENU OVERLAY -->
+    <div id="mainMenuModal" class="absolute inset-0 bg-gradient-to-b from-black/85 via-gray-950/90 to-black/95 flex flex-col justify-between p-4 sm:p-8 z-30 overflow-y-auto">
+        <!-- Header Bar -->
+        <div class="flex flex-wrap justify-between items-center gap-4 border-b border-gray-800 pb-4">
+            <div>
+                <h1 class="font-gothic text-3xl sm:text-5xl font-black tracking-wider bg-gradient-to-r from-red-500 via-amber-400 to-red-600 bg-clip-text text-transparent drop-shadow">
+                    GRAVEYARD SURVIVORS
+                </h1>
+                <p class="text-xs sm:text-sm text-gray-400 mt-0.5">22 Weapons • 30 Passives • 10 Evolutions • Massive Open Crypts & Manors</p>
+            </div>
+
+            <div class="flex items-center gap-3">
+                <div class="px-4 py-2 rounded-xl bg-amber-950/60 border border-amber-600/60 flex items-center gap-2">
+                    <span class="text-xl">🪙</span>
+                    <div>
+                        <div class="text-[10px] uppercase tracking-wider text-amber-300/80 font-bold">Total Treasury</div>
+                        <div id="menuTotalCoins" class="text-lg sm:text-xl font-black text-amber-400">0</div>
+                    </div>
+                </div>
+                <div id="cloudSyncBadge" class="px-3 py-2 rounded-xl bg-gray-900 border border-gray-800 text-xs text-gray-400">
+                    Saving Locally & Cloud...
+                </div>
+            </div>
+        </div>
+
+        <!-- Center Content Area: Tabs for Play / Meta Shop / Grimoire Combos -->
+        <div class="my-auto py-4 max-w-6xl w-full mx-auto flex flex-col gap-5">
+            <!-- Navigation Tabs -->
+            <div class="flex flex-wrap gap-2 sm:gap-3 justify-center" id="menuTabsContainer">
+                <button data-nav="tab-play" onclick="switchMenuTab('play')" class="menu-nav card-transition px-5 py-2.5 rounded-xl font-extrabold text-sm sm:text-base bg-red-700 text-white border border-red-400">
+                    ⚔️ Select Hero & Mode
+                </button>
+                <button data-nav="tab-shop" onclick="switchMenuTab('shop')" class="menu-nav card-transition px-5 py-2.5 rounded-xl font-extrabold text-sm sm:text-base bg-gray-900 text-gray-300 border border-gray-700">
+                    🩸 Altar of Power (After-Round Upgrades)
+                </button>
+                <button data-nav="tab-grimoire" onclick="switchMenuTab('grimoire')" class="menu-nav card-transition px-5 py-2.5 rounded-xl font-extrabold text-sm sm:text-base bg-gray-900 text-gray-300 border border-gray-700">
+                    📖 Evolution Grimoire (62 Items)
+                </button>
+            </div>
+
+            <!-- TAB 1: HERO & GAME MODE SELECTION -->
+            <div id="tabContentPlay" class="grid grid-cols-1 lg:grid-cols-3 gap-5 items-start">
+                <!-- Character Grid (2 Starter + 8 Unlockable) -->
+                <div class="lg:col-span-2 bg-gray-900/80 border border-gray-800 rounded-2xl p-4">
+                    <div class="flex justify-between items-center mb-3">
+                        <h2 class="font-gothic text-lg font-bold text-amber-400">Choose Your Survivor (10 Heroes)</h2>
+                        <span class="text-xs text-gray-400">D-Pad / Stick + A / Cross to Select</span>
+                    </div>
+                    <div id="characterGrid" class="grid grid-cols-2 sm:grid-cols-5 gap-2.5"></div>
+                </div>
+
+                <!-- Selected Hero Details & Mode Selection -->
+                <div class="bg-gray-900/90 border border-gray-800 rounded-2xl p-4 flex flex-col justify-between gap-4">
+                    <div id="selectedHeroPanel" class="flex flex-col gap-2"></div>
+
+                    <div class="border-t border-gray-800 pt-3">
+                        <h3 class="text-xs font-bold uppercase tracking-wider text-gray-400 mb-2">Select Graveyard Mode</h3>
+                        <div id="modeList" class="flex flex-col gap-2"></div>
+                    </div>
+
+                    <button id="startRunBtn" onclick="handleStartOrUnlockButton()" class="menu-nav card-transition w-full py-3.5 rounded-xl font-gothic font-black text-lg tracking-wider bg-gradient-to-r from-red-700 via-rose-600 to-amber-600 hover:from-red-600 hover:to-amber-500 text-white border border-amber-300 shadow-lg">
+                        ENTER THE GRAVEYARD
+                    </button>
+                </div>
+            </div>
+
+            <!-- TAB 2: META UPGRADE SHOP (AFTER-ROUND LEVELING UP SYSTEM) -->
+            <div id="tabContentShop" class="hidden bg-gray-900/85 border border-gray-800 rounded-2xl p-4 sm:p-6">
+                <div class="flex flex-wrap justify-between items-center gap-2 mb-4">
+                    <div>
+                        <h2 class="font-gothic text-xl font-bold text-amber-400">Altar of Eternal Blood (Permanent Upgrades)</h2>
+                        <p class="text-xs text-gray-400">Spend coins looted from runs to permanently empower all survivors.</p>
+                    </div>
+                    <button onclick="refundAllMetaUpgrades()" class="menu-nav card-transition px-3 py-1.5 rounded-lg bg-red-950/90 hover:bg-red-900 border border-red-700 text-xs font-bold text-red-200">
+                        ↺ Refund All Coins (100% Return)
+                    </button>
+                </div>
+                <div id="metaShopGrid" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3"></div>
+            </div>
+
+            <!-- TAB 3: EVOLUTION GRIMOIRE -->
+            <div id="tabContentGrimoire" class="hidden bg-gray-900/85 border border-gray-800 rounded-2xl p-4 sm:p-5 max-h-[62vh] overflow-y-auto">
+                <h2 class="font-gothic text-xl font-bold text-amber-400 mb-1">10 Weapon Evolutions & Item Compendium</h2>
+                <p class="text-xs text-gray-400 mb-4">Reach Level 5 with a base weapon + possess its paired Passive Relic, then open a Boss Weapon Chest or Gold Chest to evolve!</p>
+                <div id="grimoireEvolutionsGrid" class="grid grid-cols-1 md:grid-cols-2 gap-2.5 mb-5"></div>
+                <h3 class="font-gothic text-base font-bold text-indigo-300 mb-2">All 22 Weapons & 30 Passives</h3>
+                <div id="grimoireAllItemsGrid" class="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 gap-2 text-xs"></div>
+            </div>
+        </div>
+
+        <!-- Bottom Controller Help Footer -->
+        <div class="flex flex-wrap justify-between items-center gap-2 border-t border-gray-800 pt-3 text-xs text-gray-400">
+            <div class="flex items-center gap-3">
+                <span class="px-2 py-0.5 rounded bg-gray-800 text-amber-300 font-bold">X-Input / D-Input Ready</span>
+                <span>Left Stick / D-Pad: Move & Navigate UI</span>
+                <span>Right Stick: Aim Directional Weapons</span>
+                <span>A / Cross / Space: Confirm</span>
+            </div>
+            <div id="controllerTypeFooter" class="text-emerald-400 font-semibold">Controller Polling Active (60Hz)</div>
+        </div>
+    </div>
+
+    <!-- LEVEL UP / UPGRADE SELECTION MODAL -->
+    <div id="levelUpModal" class="hidden absolute inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-40">
+        <div class="max-w-3xl w-full bg-gray-950 border-2 border-amber-500/80 rounded-2xl p-5 sm:p-6 shadow-2xl flex flex-col gap-4">
+            <div class="text-center">
+                <div class="text-xs font-extrabold uppercase tracking-widest text-amber-400">Soul Ascension</div>
+                <h2 class="font-gothic text-2xl sm:text-3xl font-black text-white mt-0.5">CHOOSE AN UPGRADE</h2>
+                <p class="text-xs text-gray-400 mt-1">Use D-Pad / Stick or Mouse to select • Max 6 Weapons & 6 Passives</p>
+            </div>
+
+            <div id="upgradeChoicesContainer" class="grid grid-cols-1 md:grid-cols-3 gap-3.5"></div>
+
+            <!-- Reroll / Skip with Gold -->
+            <div class="flex justify-center gap-3 pt-1">
+                <button id="rerollBtn" onclick="rerollLevelChoices()" class="upgrade-nav card-transition px-4 py-2 rounded-xl bg-indigo-950 hover:bg-indigo-900 border border-indigo-500 text-xs font-bold text-indigo-200">
+                    🎲 Reroll Choices (Free once / 5 Coins)
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- CHEST OPENING MODAL (BOSS WEAPON CHEST & GOLD CHEST) -->
+    <div id="chestModal" class="hidden absolute inset-0 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 z-40">
+        <div class="max-w-lg w-full bg-gradient-to-b from-amber-950/90 via-gray-950 to-gray-950 border-2 border-amber-400 rounded-2xl p-6 text-center shadow-2xl flex flex-col items-center gap-4">
+            <div id="chestModalIcon" class="text-6xl chest-glow">🧰</div>
+            <h2 id="chestModalTitle" class="font-gothic text-2xl sm:text-3xl font-black text-amber-300">BOSS WEAPON CHEST!</h2>
+            <p id="chestModalSubtitle" class="text-xs uppercase tracking-widest text-amber-200/80">Ancient Relic Unsealed</p>
+
+            <div id="chestRewardCard" class="w-full bg-gray-900/90 border border-amber-500/50 rounded-xl p-4 flex flex-col items-center gap-2"></div>
+
+            <button id="chestClaimBtn" onclick="closeChestModal()" class="chest-nav nav-focus card-transition w-full py-3 rounded-xl bg-gradient-to-r from-amber-600 to-yellow-500 text-gray-950 font-black text-base tracking-wider">
+                CLAIM REWARD (A / ENTER)
+            </button>
+        </div>
+    </div>
+
+    <!-- PAUSE / AFTER-ROUND SUMMARY MODAL -->
+    <div id="runSummaryModal" class="hidden absolute inset-0 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 z-50">
+        <div class="max-w-xl w-full bg-gray-950 border-2 border-gray-700 rounded-2xl p-6 flex flex-col gap-4 shadow-2xl">
+            <div class="text-center border-b border-gray-800 pb-3">
+                <h2 id="summaryTitle" class="font-gothic text-3xl font-black text-red-500">RUN ENDED</h2>
+                <p id="summarySubtitle" class="text-xs text-gray-400 mt-1">Your echoes linger in the graveyard...</p>
+            </div>
+
+            <div id="summaryStatsGrid" class="grid grid-cols-2 gap-3 text-sm"></div>
+
+            <div id="summaryUnlocksBox" class="hidden bg-amber-950/50 border border-amber-500/60 rounded-xl p-3 text-xs text-amber-200 space-y-1"></div>
+
+            <div class="flex flex-wrap gap-3 pt-2">
+                <button id="resumeRunBtn" onclick="togglePauseGame(false)" class="summary-nav card-transition flex-1 py-3 rounded-xl bg-emerald-700 hover:bg-emerald-600 font-bold text-white">
+                    Resume Run
+                </button>
+                <button id="toAltarBtn" onclick="endRunAndOpenAltar()" class="summary-nav card-transition flex-1 py-3 rounded-xl bg-amber-600 hover:bg-amber-500 font-black text-gray-950">
+                    🩸 Level Up at Altar (Shop)
+                </button>
+                <button id="toMenuBtn" onclick="returnToMainMenu()" class="summary-nav card-transition flex-1 py-3 rounded-xl bg-gray-800 hover:bg-gray-700 font-bold text-gray-200">
+                    Main Menu
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- FIREBASE CLOUD & PERSISTENCE MODULE -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        let db = null;
+        let auth = null;
+        let currentUser = null;
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'graveyard-survivors-v1';
+
+        async function initCloudStorage() {
+            const badge = document.getElementById('cloudSyncBadge');
+            try {
+                if (typeof __firebase_config !== 'undefined' && __firebase_config) {
+                    const firebaseConfig = JSON.parse(__firebase_config);
+                    const app = initializeApp(firebaseConfig);
+                    db = getFirestore(app);
+                    auth = getAuth(app);
+
+                    if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                        const cred = await signInWithCustomToken(auth, __initial_auth_token);
+                        currentUser = cred.user;
+                    } else {
+                        const cred = await signInAnonymously(auth);
+                        currentUser = cred.user;
+                    }
+
+                    if (currentUser && db) {
+                        const saveRef = doc(db, 'artifacts', appId, 'users', currentUser.uid, 'profile', 'saveData');
+                        const snap = await getDoc(saveRef);
+                        if (snap.exists() && window.applyLoadedSaveData) {
+                            window.applyLoadedSaveData(snap.data());
+                        }
+                        if (badge) {
+                            badge.textContent = "☁️ Progress Saved";
+                            badge.className = "px-3 py-2 rounded-xl bg-emerald-950/70 border border-emerald-700 text-xs text-emerald-300";
+                        }
+                    }
+                } else {
+                    if (badge) badge.textContent = "⚡ Session Memory Ready";
+                }
+            } catch (err) {
+                if (badge) badge.textContent = "⚡ Session Ready";
+            }
+        }
+
+        window.persistSaveData = async function(savePayload) {
+            const badge = document.getElementById('cloudSyncBadge');
+            if (!currentUser || !db) return;
+            try {
+                const saveRef = doc(db, 'artifacts', appId, 'users', currentUser.uid, 'profile', 'saveData');
+                await setDoc(saveRef, savePayload, { merge: true });
+                if (badge) badge.textContent = "☁️ Saved (" + savePayload.coins + " 🪙)";
+            } catch (e) {
+                // Silent fallback in restricted environments
+            }
+        };
+
+        initCloudStorage();
+    </script>
+
+    <!-- CORE GAME ENGINE & DATA -->
+    <script>
+        /********************************************************************
+         * 1. SOUND SYNTHESIZER (Web Audio API - No external assets needed)
+         ********************************************************************/
+        class SoundFX {
+            constructor() {
+                this.ctx = null;
+                this.muted = false;
+            }
+            init() {
+                if (!this.ctx) {
+                    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+                    if (AudioCtx) this.ctx = new AudioCtx();
+                }
+                if (this.ctx && this.ctx.state === 'suspended') {
+                    this.ctx.resume();
+                }
+            }
+            play(type) {
+                if (this.muted || !this.ctx) return;
+                try {
+                    const now = this.ctx.currentTime;
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+                    osc.connect(gain);
+                    gain.connect(this.ctx.destination);
+
+                    if (type === 'gem') {
+                        osc.type = 'sine';
+                        osc.frequency.setValueAtTime(580, now);
+                        osc.frequency.exponentialRampToValueAtTime(980, now + 0.07);
+                        gain.gain.setValueAtTime(0.06, now);
+                        gain.gain.linearRampToValueAtTime(0.001, now + 0.07);
+                        osc.start(now);
+                        osc.stop(now + 0.07);
+                    } else if (type === 'coin') {
+                        osc.type = 'triangle';
+                        osc.frequency.setValueAtTime(987, now);
+                        osc.frequency.setValueAtTime(1318, now + 0.05);
+                        gain.gain.setValueAtTime(0.09, now);
+                        gain.gain.linearRampToValueAtTime(0.001, now + 0.16);
+                        osc.start(now);
+                        osc.stop(now + 0.16);
+                    } else if (type === 'hit') {
+                        osc.type = 'sawtooth';
+                        osc.frequency.setValueAtTime(140, now);
+                        osc.frequency.exponentialRampToValueAtTime(55, now + 0.05);
+                        gain.gain.setValueAtTime(0.04, now);
+                        gain.gain.linearRampToValueAtTime(0.001, now + 0.05);
+                        osc.start(now);
+                        osc.stop(now + 0.05);
+                    } else if (type === 'levelup') {
+                        osc.type = 'triangle';
+                        osc.frequency.setValueAtTime(440, now);
+                        osc.frequency.setValueAtTime(554, now + 0.08);
+                        osc.frequency.setValueAtTime(659, now + 0.16);
+                        osc.frequency.setValueAtTime(880, now + 0.24);
+                        gain.gain.setValueAtTime(0.12, now);
+                        gain.gain.linearRampToValueAtTime(0.001, now + 0.42);
+                        osc.start(now);
+                        osc.stop(now + 0.42);
+                    } else if (type === 'chest') {
+                        osc.type = 'sine';
+                        osc.frequency.setValueAtTime(330, now);
+                        osc.frequency.exponentialRampToValueAtTime(1046, now + 0.35);
+                        gain.gain.setValueAtTime(0.15, now);
+                        gain.gain.linearRampToValueAtTime(0.001, now + 0.4);
+                        osc.start(now);
+                        osc.stop(now + 0.4);
+                    } else if (type === 'ui') {
+                        osc.type = 'sine';
+                        osc.frequency.setValueAtTime(420, now);
+                        gain.gain.setValueAtTime(0.05, now);
+                        gain.gain.linearRampToValueAtTime(0.001, now + 0.04);
+                        osc.start(now);
+                        osc.stop(now + 0.04);
+                    }
+                } catch (e) {}
+            }
+        }
+        const sfx = new SoundFX();
+
+        /********************************************************************
+         * 2. 22 WEAPONS, 30 PASSIVES & 10 WEAPON EVOLUTIONS
+         ********************************************************************/
+        const WEAPONS_DB = [
+            // 10 EVOLVABLE BASE WEAPONS
+            { id: 'whip', name: 'Vampire Whip', icon: '🪢', behavior: 'directional_slash', directional: true, dmg: 18, cd: 1.05, range: 135, color: '#f87171', evoPassive: 'hollow_heart', evolvesTo: 'bloody_tear', desc: 'Slashes horizontally in your aimed direction.' },
+            { id: 'wand', name: 'Spirit Wand', icon: '🪄', behavior: 'nearest_bolt', directional: false, dmg: 14, cd: 0.75, speed: 460, range: 420, color: '#60a5fa', evoPassive: 'empty_tome', evolvesTo: 'holy_wand', desc: 'Fires homing arcane bolts at the closest enemy.' },
+            { id: 'knife', name: 'Throwing Knives', icon: '🗡️', behavior: 'directional_proj', directional: true, dmg: 12, cd: 0.55, speed: 620, range: 520, color: '#e5e7eb', evoPassive: 'bracer', evolvesTo: 'thousand_edge', desc: 'Rapidly flings blades toward your stick/aim direction.' },
+            { id: 'axe', name: 'Executioner Axe', icon: '🪓', behavior: 'lob_arc', directional: true, dmg: 28, cd: 1.35, speed: 380, range: 360, pierce: 3, color: '#fb923c', evoPassive: 'candelabrador', evolvesTo: 'death_spiral', desc: 'High-damage lobbed axes that cleave through foes.' },
+            { id: 'cross', name: 'Sacred Cross', icon: '✝️', behavior: 'boomerang', directional: true, dmg: 17, cd: 1.15, speed: 430, range: 380, pierce: 99, color: '#facc15', evoPassive: 'clover', evolvesTo: 'heaven_sword', desc: 'Boomerangs along your aim vector and returns.' },
+            { id: 'bible', name: 'Unholy Vespers', icon: '📕', behavior: 'orbit', directional: false, dmg: 13, cd: 2.2, range: 105, duration: 1.9, color: '#c084fc', evoPassive: 'spellbinder', evolvesTo: 'unholy_vespers', desc: 'Orbits protective scriptures around your body.' },
+            { id: 'firewand', name: 'Hellfire Staff', icon: '☄️', behavior: 'directional_cone', directional: true, dmg: 26, cd: 1.45, speed: 350, range: 440, pierce: 2, color: '#ef4444', evoPassive: 'spinach', evolvesTo: 'hellfire', desc: 'Blasts heavy fireballs toward your aimed direction.' },
+            { id: 'garlic', name: 'Soul Garlic', icon: '🧄', behavior: 'aura', directional: false, dmg: 8, cd: 0.55, range: 88, color: '#fde047', evoPassive: 'pummarola', evolvesTo: 'soul_eater', desc: 'Damages all nearby enemies and weakens knockback.' },
+            { id: 'santa_water', name: 'Sanctified Vial', icon: '🧪', behavior: 'ground_pool', directional: false, dmg: 14, cd: 1.7, range: 65, duration: 2.3, color: '#38bdf8', evoPassive: 'attractorb', evolvesTo: 'la_borra', desc: 'Shatters vials creating burning holy pools.' },
+            { id: 'lightning', name: 'Thunder Loop', icon: '⚡', behavior: 'smite_random', directional: false, dmg: 24, cd: 1.3, range: 70, color: '#fef08a', evoPassive: 'duplicator', evolvesTo: 'thunder_loop', desc: 'Calls down lightning bolts on random enemies.' },
+
+            // 12 ADDITIONAL UNIQUE WEAPONS (TOTAL = 22)
+            { id: 'runetracer', name: 'Runetracer', icon: '💎', behavior: 'bounce_proj', directional: true, dmg: 15, cd: 1.2, speed: 480, range: 600, pierce: 99, color: '#2dd4bf', desc: 'Piercing gemstone beam that bounces off screen edges.' },
+            { id: 'scythe', name: 'Bone Scythe', icon: '🌙', behavior: 'spin_slash', directional: true, dmg: 22, cd: 1.25, range: 145, color: '#d8b4fe', desc: 'Sweeps a wide crescent arc where you aim.' },
+            { id: 'shotgun', name: 'Crypt Blunderbuss', icon: '🔫', behavior: 'directional_cone', directional: true, dmg: 11, cd: 1.15, speed: 560, range: 360, countBonus: 3, color: '#fbbf24', desc: 'Fires a directional buckshot spread.' },
+            { id: 'spear', name: 'Valkyrie Lance', icon: '🔱', behavior: 'directional_thrust', directional: true, dmg: 24, cd: 0.9, range: 175, color: '#93c5fd', desc: 'Long directional spear thrust that impales lines of foes.' },
+            { id: 'chains', name: 'Phantom Chains', icon: '⛓️', behavior: 'directional_slash', directional: true, dmg: 19, cd: 1.1, range: 160, color: '#9ca3af', desc: 'Lashes spectral chains with high knockback.' },
+            { id: 'bats', name: 'Night Swarm', icon: '🦇', behavior: 'homing_swarm', directional: false, dmg: 10, cd: 0.95, speed: 390, range: 450, color: '#a855f7', desc: 'Summons vampire bats that seek and bite enemies.' },
+            { id: 'frost_nova', name: 'Glacial Ring', icon: '❄️', behavior: 'nova_ring', directional: false, dmg: 16, cd: 1.8, range: 140, color: '#67e8f9', desc: 'Freezes and damages enemies in an expanding frost ring.' },
+            { id: 'poison_dart', name: 'Venom Blowpipe', icon: '🎋', behavior: 'directional_proj', directional: true, dmg: 10, cd: 0.45, speed: 650, range: 500, pierce: 2, color: '#4ade80', desc: 'Shoots rapid toxic darts in your stick direction.' },
+            { id: 'meteor', name: 'Astral Meteor', icon: '🌠', behavior: 'smite_random', directional: false, dmg: 36, cd: 1.9, range: 95, color: '#f97316', desc: 'Drops explosive meteors onto dense enemy clusters.' },
+            { id: 'chakram', name: 'Sun Chakram', icon: '⚙️', behavior: 'boomerang', directional: true, dmg: 16, cd: 0.95, speed: 500, range: 420, pierce: 99, color: '#fde047', desc: 'Spinning saw disc that curves back to you.' },
+            { id: 'totem', name: 'Blood Obelisk', icon: '🗿', behavior: 'ground_pool', directional: false, dmg: 18, cd: 2.0, range: 80, duration: 2.6, color: '#f43f5e', desc: 'Erects pulsing blood totems that drain nearby monsters.' },
+            { id: 'laser', name: 'Seraphim Ray', icon: '🔦', behavior: 'directional_beam', directional: true, dmg: 20, cd: 1.1, range: 340, color: '#fef9c3', desc: 'Searing directional light beam that pierces every target.' }
+        ];
+
+        // 10 EVOLVED WEAPONS
+        const EVOLUTIONS_DB = {
+            bloody_tear: { id: 'bloody_tear', isEvolved: true, baseId: 'whip', passiveId: 'hollow_heart', name: 'Bloody Tear', icon: '🩸', behavior: 'directional_slash', directional: true, dmg: 52, cd: 0.65, range: 190, lifesteal: 2, color: '#dc2626', desc: 'EVOLVED WHIP: Critical directional slashes that heal your HP!' },
+            holy_wand: { id: 'holy_wand', isEvolved: true, baseId: 'wand', passiveId: 'empty_tome', name: 'Holy Wand', icon: '🌟', behavior: 'nearest_bolt', directional: false, dmg: 32, cd: 0.22, speed: 650, range: 550, pierce: 2, color: '#38bdf8', desc: 'EVOLVED WAND: Fires a relentless stream of arcane bolts with zero delay!' },
+            thousand_edge: { id: 'thousand_edge', isEvolved: true, baseId: 'knife', passiveId: 'bracer', name: 'Thousand Edge', icon: '⚔️', behavior: 'directional_proj', directional: true, dmg: 26, cd: 0.16, speed: 820, range: 640, pierce: 3, color: '#f3f4f6', desc: 'EVOLVED KNIVES: Unleashes an endless storm of blades where you aim!' },
+            death_spiral: { id: 'death_spiral', isEvolved: true, baseId: 'axe', passiveId: 'candelabrador', name: 'Death Spiral', icon: '🌀', behavior: 'nova_proj', directional: false, dmg: 58, cd: 1.0, speed: 460, range: 560, pierce: 99, color: '#c084fc', desc: 'EVOLVED AXE: Hurls giant镰 scythes in all directions that pierce everything!' },
+            heaven_sword: { id: 'heaven_sword', isEvolved: true, baseId: 'cross', passiveId: 'clover', name: 'Heaven Sword', icon: '🗡️', behavior: 'boomerang', directional: true, dmg: 68, cd: 0.85, speed: 560, range: 520, pierce: 99, color: '#fde047', desc: 'EVOLVED CROSS: Colossal divine blades boomerang along your aim.' },
+            unholy_vespers: { id: 'unholy_vespers', isEvolved: true, baseId: 'bible', passiveId: 'spellbinder', name: 'Crimson Vespers', icon: '📖', behavior: 'orbit', directional: false, dmg: 34, cd: 1.0, range: 135, duration: 1.05, color: '#ec4899', desc: 'EVOLVED BIBLE: Never-ending ring of高速 rotating dark scriptures.' },
+            hellfire: { id: 'hellfire', isEvolved: true, baseId: 'firewand', passiveId: 'spinach', name: 'Hellfire Meteor', icon: '🌋', behavior: 'directional_cone', directional: true, dmg: 75, cd: 0.95, speed: 460, range: 620, pierce: 99, color: '#f97316', desc: 'EVOLVED STAFF: Launches massive magma orbs that obliterate all foes in path.' },
+            soul_eater: { id: 'soul_eater', isEvolved: true, baseId: 'garlic', passiveId: 'pummarola', name: 'Soul Eater', icon: '🔮', behavior: 'aura', directional: false, dmg: 28, cd: 0.35, range: 145, lifesteal: 1, color: '#a855f7', desc: 'EVOLVED GARLIC: Huge dark aura that steals life and disintegrates swarms.' },
+            la_borra: { id: 'la_borra', isEvolved: true, baseId: 'santa_water', passiveId: 'attractorb', name: 'La Borra', icon: '🌊', behavior: 'ground_pool', directional: false, dmg: 38, cd: 1.1, range: 110, duration: 3.0, color: '#06b6d4', desc: 'EVOLVED VIAL: Summons encroaching rings of blessed flame around you.' },
+            thunder_loop: { id: 'thunder_loop', isEvolved: true, baseId: 'lightning', passiveId: 'duplicator', name: 'Thunder Loop', icon: '🌩️', behavior: 'smite_random', directional: false, dmg: 64, cd: 0.75, range: 120, color: '#facc15', desc: 'EVOLVED LIGHTNING: Dual chain-lightning strikes with massive shockwaves.' }
+        };
+
+        // 30 UNIQUE PASSIVES
+        const PASSIVES_DB = [
+            // 10 Evolution Catalysts
+            { id: 'spinach', name: 'Demon Spinach', icon: '🌿', stat: 'might', val: 0.12, desc: '+12% Weapon Damage per rank (Evolves Hellfire Staff).' },
+            { id: 'hollow_heart', name: 'Hollow Heart', icon: '🖤', stat: 'maxHpPct', val: 0.20, desc: '+20% Max Health per rank (Evolves Vampire Whip).' },
+            { id: 'pummarola', name: 'Bleeding Heart', icon: '❤️‍🔥', stat: 'regen', val: 0.6, desc: '+0.6 HP/sec Regeneration per rank (Evolves Soul Garlic).' },
+            { id: 'empty_tome', name: 'Ancient Tome', icon: '📘', stat: 'cdr', val: 0.08, desc: '-8% Weapon Cooldown per rank (Evolves Spirit Wand).' },
+            { id: 'candelabrador', name: 'Candelabrador', icon: '🕯️', stat: 'area', val: 0.12, desc: '+12% Attack Area/Size per rank (Evolves Executioner Axe).' },
+            { id: 'bracer', name: 'Iron Bracer', icon: '🥊', stat: 'projSpeed', val: 0.15, desc: '+15% Projectile Speed per rank (Evolves Throwing Knives).' },
+            { id: 'spellbinder', name: 'Spellbinder', icon: '⏳', stat: 'duration', val: 0.15, desc: '+15% Effect Duration per rank (Evolves Unholy Vespers).' },
+            { id: 'duplicator', name: 'Duplicator Ring', icon: '💍', stat: 'amount', val: 1, maxLv: 2, desc: '+1 Extra Projectile per rank (Evolves Thunder Loop).' },
+            { id: 'attractorb', name: 'Attractorb', icon: '🧲', stat: 'magnet', val: 0.30, desc: '+30% Gem Pickup Radius per rank (Evolves Sanctified Vial).' },
+            { id: 'clover', name: 'Four-Leaf Clover', icon: '🍀', stat: 'luck', val: 0.12, desc: '+12% Luck for Gold & Chests (Evolves Sacred Cross).' },
+
+            // 20 More Synergy Passives (Total = 30)
+            { id: 'wings', name: 'Raven Wings', icon: '🪶', stat: 'moveSpeed', val: 0.10, desc: '+10% Movement Speed per rank.' },
+            { id: 'armor', name: 'Plate Armor', icon: '🛡️', stat: 'armor', val: 1.5, desc: 'Reduces incoming damage by 1.5 per rank.' },
+            { id: 'crown', name: 'Royal Crown', icon: '👑', stat: 'xpMult', val: 0.10, desc: '+10% Experience Gained from all Gems.' },
+            { id: 'stone_mask', name: 'Greed Mask', icon: '🎭', stat: 'greed', val: 0.15, desc: '+15% Gold Coin value & drop chance.' },
+            { id: 'tiragisu', name: 'Angel Tiragisu', icon: '🍮', stat: 'revives', val: 1, maxLv: 2, desc: '+1 Extra Revival with 50% HP on fatal hit.' },
+            { id: 'skull_omaniac', name: 'Skull O\'Maniac', icon: '💀', stat: 'might', val: 0.15, desc: '+15% Damage dealt, increases monster aggression.' },
+            { id: 'silver_ring', name: 'Silver Band', icon: '⚪', stat: 'area', val: 0.08, desc: '+8% Attack Size & Duration.' },
+            { id: 'gold_ring', name: 'Cursed Gold Band', icon: '🟡', stat: 'greed', val: 0.20, desc: '+20% Gold Coins found in the graveyard.' },
+            { id: 'blood_chalice', name: 'Blood Chalice', icon: '🍷', stat: 'lifesteal', val: 0.02, desc: 'Grants a chance to heal 1 HP when striking enemies.' },
+            { id: 'wolf_fang', name: 'Werewolf Fang', icon: '🦷', stat: 'critChance', val: 0.06, desc: '+6% Critical Strike Chance.' },
+            { id: 'hawk_eye', name: 'Hawk Monocle', icon: '🧐', stat: 'critMult', val: 0.25, desc: '+25% Critical Strike Damage.' },
+            { id: 'obsidian_boots', name: 'Gravewalker Boots', icon: '🥾', stat: 'moveSpeed', val: 0.08, desc: '+8% Speed and knockback resistance.' },
+            { id: 'soul_lantern', name: 'Wraith Lantern', icon: '🏮', stat: 'magnet', val: 0.22, desc: '+22% Gem attraction distance.' },
+            { id: 'bone_amulet', name: 'Ossuary Amulet', icon: '🦴', stat: 'pierce', val: 1, maxLv: 3, desc: '+1 Enemy Pierce to all projectiles.' },
+            { id: 'witch_hat', name: 'Coven Hat', icon: '👒', stat: 'cdr', val: 0.06, desc: '-6% Cooldown for all magical weapons.' },
+            { id: 'mirror_shield', name: 'Aegis Mirror', icon: '🪞', stat: 'thorns', val: 12, desc: 'Reflects 12 damage back onto attackers per rank.' },
+            { id: 'hourglass', name: 'Dusk Hourglass', icon: '⌛', stat: 'duration', val: 0.12, desc: '+12% Weapon persistence & slow effect.' },
+            { id: 'ruby_pendant', name: 'Crimson Ruby', icon: '♦️', stat: 'might', val: 0.10, desc: '+10% Base Attack Power.' },
+            { id: 'emerald_charm', name: 'Viper Charm', icon: '❇️', stat: 'xpMult', val: 0.08, desc: '+8% XP Gain & +10 Max HP.' },
+            { id: 'alchemist_stone', name: 'Philosopher Stone', icon: '🔮', stat: 'luck', val: 0.15, desc: '+15% Chest & Gold drop luck.' }
+        ];
+
+        /********************************************************************
+         * 3. 10 CHARACTERS (2 STARTER + 8 UNLOCKABLE) & 4 GAME MODES
+         ********************************************************************/
+        const CHARACTERS_DB = [
+            { id: 'antonio', name: 'Sir Viktor', icon: '🧛', unlockedDefault: true, cost: 0, weapon: 'whip', bonusText: '+15% Might, +20 Max HP', mods: { might: 0.15, maxHp: 20 } },
+            { id: 'imelda', name: 'Lady Lyra', icon: '🧙‍♀️', unlockedDefault: true, cost: 0, weapon: 'wand', bonusText: '+20% XP Gain, -8% Cooldown', mods: { xpMult: 0.20, cdr: 0.08 } },
+            { id: 'pasqualina', name: 'Kaelen Swift', icon: '🥷', unlockedDefault: false, cost: 25, weapon: 'knife', bonusText: '+20% Move Speed, +25% Proj Speed', mods: { moveSpeed: 0.20, projSpeed: 0.25 } },
+            { id: 'gennaro', name: 'Bram Ironhand', icon: '🪓', unlockedDefault: false, cost: 50, weapon: 'axe', bonusText: '+1 Projectile To All Weapons', mods: { amount: 1 } },
+            { id: 'arca', name: 'Ignis Pyromancer', icon: '🔥', unlockedDefault: false, cost: 75, weapon: 'firewand', bonusText: '-15% Cooldown, +15% Area', mods: { cdr: 0.15, area: 0.15 } },
+            { id: 'porta', name: 'Zephyr Stormcaller', icon: '⚡', unlockedDefault: false, cost: 100, weapon: 'lightning', bonusText: '+30% Attack Area & +15% Luck', mods: { area: 0.30, luck: 0.15 } },
+            { id: 'poe', name: 'Elder Malakor', icon: '👴', unlockedDefault: false, cost: 125, weapon: 'garlic', bonusText: '+50% Pickup Magnet, +1.5 HP Regen', mods: { magnet: 0.50, regen: 1.5 } },
+            { id: 'clerici', name: 'Sister Celestia', icon: '👼', unlockedDefault: false, cost: 160, weapon: 'santa_water', bonusText: '+40 Max HP, +2 Armor', mods: { maxHp: 40, armor: 2 } },
+            { id: 'dommario', name: 'Abbot Nocturne', icon: '📿', unlockedDefault: false, cost: 200, weapon: 'bible', bonusText: '+35% Duration, +20% Might', mods: { duration: 0.35, might: 0.20 } },
+            { id: 'red_death', name: 'Lord Crimson', icon: '💀', unlockedDefault: false, cost: 300, weapon: 'scythe', bonusText: '+35% Speed, +25% Might, +1 Projectile', mods: { moveSpeed: 0.35, might: 0.25, amount: 1 } }
+        ];
+
+        const GAME_MODES_DB = [
+            { id: 'standard', name: 'Standard Graveyard', icon: '🪦', unlockedDefault: true, cost: 0, enemySpeedMult: 1.0, spawnRateMult: 1.0, goldMult: 1.0, timeSpeed: 1.0, desc: 'Classic survival across the sprawling grassy graveyard & haunted manors.' },
+            { id: 'hyper', name: 'Hyper Blood Moon', icon: '🩸', unlockedDefault: false, cost: 40, enemySpeedMult: 1.35, spawnRateMult: 1.3, goldMult: 1.75, timeSpeed: 1.25, desc: '+75% Gold & +35% Pace! Unlock with 40 Coins or by defeating a Boss.' },
+            { id: 'endless', name: 'Endless Eclipse', icon: '🌑', unlockedDefault: false, cost: 80, enemySpeedMult: 1.15, spawnRateMult: 1.5, goldMult: 2.0, timeSpeed: 1.0, desc: '2x Gold & Relentless hordes with recurring Boss Chests.' },
+            { id: 'boss_rush', name: 'Crypt Lord Rush', icon: '👑', unlockedDefault: false, cost: 120, enemySpeedMult: 1.2, spawnRateMult: 1.2, goldMult: 2.5, timeSpeed: 1.5, desc: '2.5x Gold! Mini-Bosses spawn every 45 seconds dropping Weapon Chests!' }
+        ];
+
+        // AFTER-ROUND PERMANENT LEVELING UP SYSTEM (META UPGRADES)
+        const META_SHOP_DB = [
+            { id: 'might', name: 'Ferocity', icon: '⚔️', maxLv: 5, baseCost: 10, desc: '+6% Base Damage per rank' },
+            { id: 'maxHp', name: 'Vitality', icon: '❤️', maxLv: 5, baseCost: 10, desc: '+15 Starting Max HP per rank' },
+            { id: 'regen', name: 'Blood Mending', icon: '🧪', maxLv: 5, baseCost: 12, desc: '+0.4 HP/sec Recovery per rank' },
+            { id: 'armor', name: 'Iron Skin', icon: '🛡️', maxLv: 5, baseCost: 15, desc: '+1 Damage Reduction per rank' },
+            { id: 'cdr', name: 'Arcane Haste', icon: '⏳', maxLv: 5, baseCost: 18, desc: '-4% Weapon Cooldown per rank' },
+            { id: 'moveSpeed', name: 'Swiftness', icon: '👟', maxLv: 5, baseCost: 10, desc: '+5% Move Speed per rank' },
+            { id: 'magnet', name: 'Soul Magnet', icon: '🧲', maxLv: 5, baseCost: 10, desc: '+20% Gem & Coin Pickup Range' },
+            { id: 'luck', name: 'Fortune', icon: '🍀', maxLv: 5, baseCost: 14, desc: '+10% Gold & Gold Chest Drop Chance' },
+            { id: 'greed', name: 'Avarice', icon: '🪙', maxLv: 5, baseCost: 15, desc: '+20% Coin Value per rank' },
+            { id: 'amount', name: 'Duplicator Seal', icon: '✨', maxLv: 2, baseCost: 60, desc: '+1 Projectile to all weapons' }
+        ];
+
+        /********************************************************************
+         * 4. SAVE STATE (STARTS AT 0 COINS AS REQUESTED)
+         ********************************************************************/
+        const saveData = {
+            coins: 0, // Starts strictly with 0 coins
+            unlockedChars: ['antonio', 'imelda'],
+            unlockedModes: ['standard'],
+            metaLevels: {
+                might: 0, maxHp: 0, regen: 0, armor: 0, cdr: 0,
+                moveSpeed: 0, magnet: 0, luck: 0, greed: 0, amount: 0
+            },
+            selectedChar: 'antonio',
+            selectedMode: 'standard'
+        };
+
+        try {
+            const localSave = JSON.parse(localStorage.getItem('graveyard-survivors-save') || 'null');
+            if (localSave) {
+                if (typeof localSave.coins === 'number') saveData.coins = localSave.coins;
+                if (Array.isArray(localSave.unlockedChars)) saveData.unlockedChars = localSave.unlockedChars;
+                if (Array.isArray(localSave.unlockedModes)) saveData.unlockedModes = localSave.unlockedModes;
+                if (localSave.metaLevels) Object.assign(saveData.metaLevels, localSave.metaLevels);
+                if (localSave.selectedChar) saveData.selectedChar = localSave.selectedChar;
+                if (localSave.selectedMode) saveData.selectedMode = localSave.selectedMode;
+            }
+        } catch (e) {}
+
+        window.applyLoadedSaveData = function(loaded) {
+            if (!loaded) return;
+            if (typeof loaded.coins === 'number') saveData.coins = loaded.coins;
+            if (Array.isArray(loaded.unlockedChars)) saveData.unlockedChars = loaded.unlockedChars;
+            if (Array.isArray(loaded.unlockedModes)) saveData.unlockedModes = loaded.unlockedModes;
+            if (loaded.metaLevels) Object.assign(saveData.metaLevels, loaded.metaLevels);
+            renderMenuUI();
+        };
+
+        function triggerSave() {
+            document.getElementById('menuTotalCoins').textContent = saveData.coins;
+            try { localStorage.setItem('graveyard-survivors-save', JSON.stringify(saveData)); } catch (e) {}
+            if (window.persistSaveData) {
+                window.persistSaveData(saveData);
+            }
+        }
+
+        /********************************************************************
+         * 5. MASSIVE WORLD GENERATION (4000x4000 GRASSY GRAVEYARD + LARGE HOUSES)
+         ********************************************************************/
+        const WORLD_SIZE = 4000;
+        const worldObjects = {
+            houses: [],
+            gravestones: [],
+            trees: [],
+            paths: []
+        };
+
+        function generateGraveyardWorld() {
+            worldObjects.houses = [];
+            worldObjects.gravestones = [];
+            worldObjects.trees = [];
+
+            // Generate 16 Large Haunted Houses / Mausoleums across the 4000x4000 map
+            const houseLocations = [
+                { x: 900, y: 900, w: 280, h: 210, name: 'Blackwood Manor' },
+                { x: 2900, y: 850, w: 310, h: 220, name: 'St. Jude Cathedral' },
+                { x: 850, y: 2950, w: 290, h: 210, name: 'Ravencrest Abbey' },
+                { x: 2950, y: 2900, w: 320, h: 240, name: 'Von Carstein Keep' },
+                { x: 1950, y: 1100, w: 260, h: 190, name: 'Caretaker Lodge' },
+                { x: 1950, y: 2850, w: 260, h: 190, name: 'Ossuary Hall' },
+                { x: 1100, y: 1950, w: 240, h: 200, name: 'West Mausoleum' },
+                { x: 2850, y: 1950, w: 240, h: 200, name: 'East Mausoleum' },
+                { x: 500, y: 1500, w: 250, h: 185, name: 'Abandoned Chapel' },
+                { x: 3400, y: 1500, w: 250, h: 185, name: 'Dusk Rectory' },
+                { x: 1500, y: 500, w: 260, h: 190, name: 'North Crypt House' },
+                { x: 1500, y: 3400, w: 260, h: 190, name: 'South Crypt House' },
+                { x: 2450, y: 1450, w: 230, h: 175, name: 'Gravedigger Inn' },
+                { x: 1450, y: 2450, w: 230, h: 175, name: 'Plague Doctor Estate' }
+            ];
+
+            houseLocations.forEach(h => {
+                // Keep safe spawn zone around center (2000, 2000)
+                worldObjects.houses.push(h);
+            });
+
+            // Generate 280 Gravestones & Dead Trees avoiding houses and spawn point
+            for (let i = 0; i < 320; i++) {
+                const gx = 150 + Math.random() * (WORLD_SIZE - 300);
+                const gy = 150 + Math.random() * (WORLD_SIZE - 300);
+                if (Math.hypot(gx - 2000, gy - 2000) < 220) continue;
+                let insideHouse = false;
+                for (const h of worldObjects.houses) {
+                    if (gx > h.x - 40 && gx < h.x + h.w + 40 && gy > h.y - 40 && gy < h.y + h.h + 40) {
+                        insideHouse = true;
+                        break;
+                    }
+                }
+                if (!insideHouse) {
+                    if (i % 4 === 0) {
+                        worldObjects.trees.push({ x: gx, y: gy, r: 22 });
+                    } else {
+                        worldObjects.gravestones.push({
+                            x: gx, y: gy,
+                            w: 24, h: 32,
+                            style: i % 3 // Cross, Round top, Obelisk
+                        });
+                    }
+                }
+            }
+        }
+
+        /********************************************************************
+         * 6. UNIFIED INPUT ENGINE (KEYBOARD, MOUSE, X-INPUT & D-INPUT GAMEPADS)
+         ********************************************************************/
+        const inputState = {
+            keys: {},
+            moveX: 0,
+            moveY: 0,
+            aimX: 1,
+            aimY: 0,
+            mouseWorldX: 2000,
+            mouseWorldY: 2000,
+            mouseActive: false,
+            gamepadConnected: false,
+            gamepadType: 'None',
+            lastNavTime: 0,
+            prevButtons: {}
+        };
+
+        window.addEventListener('keydown', e => {
+            inputState.keys[e.code] = true;
+            sfx.init();
+            if (e.code === 'Escape') {
+                if (game.state === 'playing') togglePauseGame(true);
+                else if (game.state === 'paused') togglePauseGame(false);
+            }
+            handleKeyboardUINav(e.code);
+        });
+        window.addEventListener('keyup', e => {
+            inputState.keys[e.code] = false;
+        });
+        window.addEventListener('mousemove', e => {
+            inputState.mouseActive = true;
+            const canvas = document.getElementById('gameCanvas');
+            const rect = canvas.getBoundingClientRect();
+            const cx = e.clientX - rect.left;
+            const cy = e.clientY - rect.top;
+            if (game.player) {
+                const dx = cx - canvas.width / 2;
+                const dy = cy - canvas.height / 2;
+                const len = Math.hypot(dx, dy);
+                if (len > 12) {
+                    inputState.aimX = dx / len;
+                    inputState.aimY = dy / len;
+                    document.getElementById('hudAimMode').textContent = 'Aim: Mouse Vector';
+                }
+            }
+        });
+
+        window.addEventListener('gamepadconnected', e => {
+            const id = e.gamepad.id.toLowerCase();
+            const isXInput = id.includes('xbox') || id.includes('xinput') || e.gamepad.mapping === 'standard';
+            inputState.gamepadConnected = true;
+            inputState.gamepadType = isXInput ? 'X-Input Controller' : 'D-Input Controller';
+            updateGamepadHUD(true, `${inputState.gamepadType} (${e.gamepad.id.slice(0, 22)})`);
+        });
+
+        window.addEventListener('gamepaddisconnected', () => {
+            inputState.gamepadConnected = false;
+            updateGamepadHUD(false, 'WASD / Arrows + Mouse | Connect X-Input or D-Input Gamepad');
+        });
+
+        function updateGamepadHUD(connected, label) {
+            const dot = document.getElementById('gpDot');
+            const text = document.getElementById('gpText');
+            const footer = document.getElementById('controllerTypeFooter');
+            if (dot) dot.className = connected ? 'w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse' : 'w-2.5 h-2.5 rounded-full bg-amber-500';
+            if (text) text.textContent = label;
+            if (footer) footer.textContent = connected ? `Connected: ${label}` : 'Controller Ready (X-Input & D-Input Supported)';
+        }
+
+        function pollGamepadAndInputs(now) {
+            let mx = 0, my = 0;
+            if (inputState.keys['KeyW'] || inputState.keys['ArrowUp']) my -= 1;
+            if (inputState.keys['KeyS'] || inputState.keys['ArrowDown']) my += 1;
+            if (inputState.keys['KeyA'] || inputState.keys['ArrowLeft']) mx -= 1;
+            if (inputState.keys['KeyD'] || inputState.keys['ArrowRight']) mx += 1;
+
+            const pads = navigator.getGamepads ? navigator.getGamepads() : [];
+            let gp = null;
+            for (let i = 0; i < pads.length; i++) {
+                if (pads[i] && pads[i].connected) { gp = pads[i]; break; }
+            }
+
+            if (gp) {
+                if (!inputState.gamepadConnected) {
+                    const isStandard = gp.mapping === 'standard' || gp.id.toLowerCase().includes('xinput') || gp.id.toLowerCase().includes('xbox');
+                    inputState.gamepadConnected = true;
+                    inputState.gamepadType = isStandard ? 'X-Input' : 'D-Input';
+                    updateGamepadHUD(true, `${inputState.gamepadType} Active`);
+                }
+
+                // Left Stick (Axes 0, 1)
+                const lx = Math.abs(gp.axes[0] || 0) > 0.18 ? gp.axes[0] : 0;
+                const ly = Math.abs(gp.axes[1] || 0) > 0.18 ? gp.axes[1] : 0;
+                if (lx !== 0 || ly !== 0) {
+                    mx = lx;
+                    my = ly;
+                }
+
+                // D-Pad buttons (Standard X-Input 12,13,14,15)
+                if (gp.buttons[12]?.pressed) my = -1;
+                if (gp.buttons[13]?.pressed) my = 1;
+                if (gp.buttons[14]?.pressed) mx = -1;
+                if (gp.buttons[15]?.pressed) mx = 1;
+
+                // Right Stick Aiming (X-Input axes 2,3 | D-Input fallback axes 2,5 or 3,4)
+                let rx = gp.axes[2] || 0;
+                let ry = gp.axes[3] || 0;
+                if (gp.mapping !== 'standard' && Math.hypot(rx, ry) < 0.2 && gp.axes.length >= 6) {
+                    rx = gp.axes[2] || 0;
+                    ry = gp.axes[5] || 0;
+                }
+                if (Math.hypot(rx, ry) > 0.25) {
+                    const rlen = Math.hypot(rx, ry);
+                    inputState.aimX = rx / rlen;
+                    inputState.aimY = ry / rlen;
+                    inputState.mouseActive = false;
+                    document.getElementById('hudAimMode').textContent = `Aim: Right Stick (${inputState.gamepadType})`;
+                } else if (!inputState.mouseActive && Math.hypot(mx, my) > 0.2) {
+                    const mlen = Math.hypot(mx, my);
+                    inputState.aimX = mx / mlen;
+                    inputState.aimY = my / mlen;
+                    document.getElementById('hudAimMode').textContent = `Aim: Left Stick (${inputState.gamepadType})`;
+                }
+
+                // Controller UI Navigation when not playing
+                if (now - inputState.lastNavTime > 190) {
+                    if (my < -0.5) { navigateUI(-1, 'vertical'); inputState.lastNavTime = now; }
+                    else if (my > 0.5) { navigateUI(1, 'vertical'); inputState.lastNavTime = now; }
+                    else if (mx < -0.5) { navigateUI(-1, 'horizontal'); inputState.lastNavTime = now; }
+                    else if (mx > 0.5) { navigateUI(1, 'horizontal'); inputState.lastNavTime = now; }
+                }
+
+                // Button Edges (A/Cross = 0 or D-Input 1/2, B = 1, LB = 4, RB = 5, Start = 9)
+                const confirmPressed = gp.buttons[0]?.pressed || (gp.mapping !== 'standard' && gp.buttons[2]?.pressed);
+                const startPressed = gp.buttons[9]?.pressed;
+                const lbPressed = gp.buttons[4]?.pressed;
+                const rbPressed = gp.buttons[5]?.pressed;
+
+                if (confirmPressed && !inputState.prevButtons.confirm) {
+                    sfx.init();
+                    triggerFocusedUIElement();
+                }
+                if (startPressed && !inputState.prevButtons.start) {
+                    if (game.state === 'playing') togglePauseGame(true);
+                    else if (game.state === 'paused') togglePauseGame(false);
+                }
+                if (game.state === 'menu') {
+                    if (lbPressed && !inputState.prevButtons.lb) cycleMenuTabs(-1);
+                    if (rbPressed && !inputState.prevButtons.rb) cycleMenuTabs(1);
+                }
+
+                inputState.prevButtons.confirm = confirmPressed;
+                inputState.prevButtons.start = startPressed;
+                inputState.prevButtons.lb = lbPressed;
+                inputState.prevButtons.rb = rbPressed;
+            }
+
+            // Normalize movement vector
+            const mLen = Math.hypot(mx, my);
+            if (mLen > 1) {
+                mx /= mLen;
+                my /= mLen;
+            }
+            inputState.moveX = mx;
+            inputState.moveY = my;
+
+            // Update aim direction from keyboard if mouse isn't overriding
+            if (!inputState.mouseActive && mLen > 0.1 && !gp) {
+                inputState.aimX = mx;
+                inputState.aimY = my;
+                document.getElementById('hudAimMode').textContent = 'Aim: Movement Direction';
+            }
+        }
+
+        /********************************************************************
+         * 7. CONTROLLER-FRIENDLY UI NAVIGATION MANAGER
+         ********************************************************************/
+        let uiFocusIndex = 0;
+        let currentMenuTab = 'play';
+
+        function getActiveFocusableElements() {
+            if (game.state === 'levelup') {
+                return Array.from(document.querySelectorAll('.upgrade-nav'));
+            }
+            if (game.state === 'chest') {
+                return Array.from(document.querySelectorAll('.chest-nav'));
+            }
+            if (game.state === 'paused' || game.state === 'gameover') {
+                return Array.from(document.querySelectorAll('.summary-nav')).filter(el => !el.classList.contains('hidden'));
+            }
+            if (game.state === 'menu') {
+                return Array.from(document.querySelectorAll('#mainMenuModal .menu-nav')).filter(el => el.offsetParent !== null);
+            }
+            return [];
+        }
+
+        function refreshUIFocus(resetIndex = false) {
+            const list = getActiveFocusableElements();
+            document.querySelectorAll('.nav-focus').forEach(el => el.classList.remove('nav-focus'));
+            if (list.length === 0) return;
+            if (resetIndex || uiFocusIndex >= list.length || uiFocusIndex < 0) uiFocusIndex = 0;
+            const target = list[uiFocusIndex];
+            if (target) {
+                target.classList.add('nav-focus');
+                target.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+            }
+        }
+
+        function navigateUI(dir, axis) {
+            if (game.state === 'playing') return;
+            const list = getActiveFocusableElements();
+            if (list.length === 0) return;
+            sfx.play('ui');
+            let step = dir;
+            if (axis === 'vertical' && game.state === 'menu' && list.length > 6) {
+                step = dir * 2;
+            }
+            uiFocusIndex = (uiFocusIndex + step + list.length) % list.length;
+            refreshUIFocus(false);
+        }
+
+        function triggerFocusedUIElement() {
+            if (game.state === 'playing') return;
+            const list = getActiveFocusableElements();
+            if (list[uiFocusIndex]) {
+                sfx.play('ui');
+                list[uiFocusIndex].click();
+            }
+        }
+
+        function handleKeyboardUINav(code) {
+            if (game.state === 'playing') return;
+            if (code === 'ArrowRight' || code === 'KeyD') navigateUI(1, 'horizontal');
+            else if (code === 'ArrowLeft' || code === 'KeyA') navigateUI(-1, 'horizontal');
+            else if (code === 'ArrowDown' || code === 'KeyS') navigateUI(1, 'vertical');
+            else if (code === 'ArrowUp' || code === 'KeyW') navigateUI(-1, 'vertical');
+            else if (code === 'Enter' || code === 'Space') triggerFocusedUIElement();
+        }
+
+        function cycleMenuTabs(dir) {
+            const order = ['play', 'shop', 'grimoire'];
+            const idx = (order.indexOf(currentMenuTab) + dir + order.length) % order.length;
+            switchMenuTab(order[idx]);
+        }
+
+        /********************************************************************
+         * 8. CORE GAME STATE, ENTITIES & COMBAT LOGIC
+         ********************************************************************/
+        const game = {
+            state: 'menu', // 'menu', 'playing', 'levelup', 'chest', 'paused', 'gameover'
+            time: 0,
+            kills: 0,
+            runCoins: 0,
+            rerollsUsed: 0,
+            bossSpawnTimer: 60,
+            player: null,
+            enemies: [],
+            projectiles: [],
+            meleeSlashes: [],
+            groundPools: [],
+            gems: [], // Blue=1, Green=10, Red=100, Coin, GoldChest, BossWeaponChest
+            floatingTexts: [],
+            particles: [],
+            modeConfig: GAME_MODES_DB[0]
+        };
+
+        function createPlayer(charId) {
+            const charDef = CHARACTERS_DB.find(c => c.id === charId) || CHARACTERS_DB[0];
+            const m = saveData.metaLevels;
+
+            const baseHp = 100 + (charDef.mods.maxHp || 0) + (m.maxHp * 15);
+            const player = {
+                x: WORLD_SIZE / 2,
+                y: WORLD_SIZE / 2,
+                r: 16,
+                charDef,
+                hp: baseHp,
+                maxHp: baseHp,
+                level: 1,
+                xp: 0,
+                nextXp: 10,
+                weapons: [], // Max 6
+                passives: [], // Max 6
+                revivesLeft: 0,
+                invulnTimer: 0,
+                walkFrame: 0,
+                stats: {
+                    might: 1 + (charDef.mods.might || 0) + (m.might * 0.06),
+                    cdr: 1 - (charDef.mods.cdr || 0) - (m.cdr * 0.04),
+                    moveSpeed: 195 * (1 + (charDef.mods.moveSpeed || 0) + (m.moveSpeed * 0.05)),
+                    projSpeed: 1 + (charDef.mods.projSpeed || 0),
+                    area: 1 + (charDef.mods.area || 0),
+                    duration: 1 + (charDef.mods.duration || 0),
+                    magnet: 95 * (1 + (charDef.mods.magnet || 0) + (m.magnet * 0.20)),
+                    luck: 1 + (charDef.mods.luck || 0) + (m.luck * 0.10),
+                    greed: 1 + (m.greed * 0.20),
+                    xpMult: 1 + (charDef.mods.xpMult || 0),
+                    regen: (charDef.mods.regen || 0) + (m.regen * 0.4),
+                    armor: (charDef.mods.armor || 0) + (m.armor * 1),
+                    amount: (charDef.mods.amount || 0) + m.amount,
+                    pierce: 0,
+                    critChance: 0.08,
+                    critMult: 1.75,
+                    lifesteal: 0,
+                    thorns: 0
+                }
+            };
+
+            // Add starting weapon
+            addOrUpgradeWeapon(player, charDef.weapon);
+            return player;
+        }
+
+        function recalculatePlayerStats(p) {
+            const c = p.charDef;
+            const m = saveData.metaLevels;
+            const oldMax = p.maxHp;
+
+            let maxHpPct = 1;
+            let flatHp = 100 + (c.mods.maxHp || 0) + (m.maxHp * 15);
+            let might = 1 + (c.mods.might || 0) + (m.might * 0.06);
+            let cdr = 1 - (c.mods.cdr || 0) - (m.cdr * 0.04);
+            let moveSpeedMult = 1 + (c.mods.moveSpeed || 0) + (m.moveSpeed * 0.05);
+            let projSpeed = 1 + (c.mods.projSpeed || 0);
+            let area = 1 + (c.mods.area || 0);
+            let duration = 1 + (c.mods.duration || 0);
+            let magnetMult = 1 + (c.mods.magnet || 0) + (m.magnet * 0.20);
+            let luck = 1 + (c.mods.luck || 0) + (m.luck * 0.10);
+            let greed = 1 + (m.greed * 0.20);
+            let xpMult = 1 + (c.mods.xpMult || 0);
+            let regen = (c.mods.regen || 0) + (m.regen * 0.4);
+            let armor = (c.mods.armor || 0) + (m.armor * 1);
+            let amount = (c.mods.amount || 0) + m.amount;
+            let pierce = 0;
+            let critChance = 0.08;
+            let critMult = 1.75;
+            let lifesteal = 0;
+            let thorns = 0;
+
+            p.passives.forEach(pas => {
+                const db = PASSIVES_DB.find(x => x.id === pas.id);
+                if (!db) return;
+                const totalVal = db.val * pas.level;
+                if (db.stat === 'might') might += totalVal;
+                else if (db.stat === 'maxHpPct') maxHpPct += totalVal;
+                else if (db.stat === 'regen') regen += totalVal;
+                else if (db.stat === 'cdr') cdr -= totalVal;
+                else if (db.stat === 'area') area += totalVal;
+                else if (db.stat === 'projSpeed') projSpeed += totalVal;
+                else if (db.stat === 'duration') duration += totalVal;
+                else if (db.stat === 'amount') amount += totalVal;
+                else if (db.stat === 'magnet') magnetMult += totalVal;
+                else if (db.stat === 'luck') luck += totalVal;
+                else if (db.stat === 'moveSpeed') moveSpeedMult += totalVal;
+                else if (db.stat === 'armor') armor += totalVal;
+                else if (db.stat === 'xpMult') xpMult += totalVal;
+                else if (db.stat === 'greed') greed += totalVal;
+                else if (db.stat === 'lifesteal') lifesteal += totalVal;
+                else if (db.stat === 'critChance') critChance += totalVal;
+                else if (db.stat === 'critMult') critMult += totalVal;
+                else if (db.stat === 'pierce') pierce += totalVal;
+                else if (db.stat === 'thorns') thorns += totalVal;
+            });
+
+            p.maxHp = Math.round(flatHp * maxHpPct);
+            if (p.maxHp > oldMax) p.hp += (p.maxHp - oldMax);
+            p.stats = {
+                might,
+                cdr: Math.max(0.28, cdr),
+                moveSpeed: 195 * moveSpeedMult,
+                projSpeed,
+                area,
+                duration,
+                magnet: 95 * magnetMult,
+                luck,
+                greed,
+                xpMult,
+                regen,
+                armor,
+                amount,
+                pierce,
+                critChance,
+                critMult,
+                lifesteal,
+                thorns
+            };
+        }
+
+        function addOrUpgradeWeapon(p, weaponId) {
+            // Check if evolved weapon
+            if (EVOLUTIONS_DB[weaponId]) {
+                const evo = EVOLUTIONS_DB[weaponId];
+                const idx = p.weapons.findIndex(w => w.id === evo.baseId);
+                if (idx !== -1) {
+                    p.weapons[idx] = { id: evo.id, level: 8, maxLv: 8, timer: 0.1, isEvolved: true, def: evo };
+                } else if (p.weapons.length < 6) {
+                    p.weapons.push({ id: evo.id, level: 8, maxLv: 8, timer: 0.1, isEvolved: true, def: evo });
+                }
+                renderHUDIcons();
+                return;
+            }
+
+            const existing = p.weapons.find(w => w.id === weaponId);
+            if (existing) {
+                existing.level = Math.min(8, existing.level + 1);
+            } else if (p.weapons.length < 6) {
+                const def = WEAPONS_DB.find(w => w.id === weaponId);
+                if (def) {
+                    p.weapons.push({ id: def.id, level: 1, maxLv: 8, timer: 0.1, isEvolved: false, def });
+                }
+            }
+            renderHUDIcons();
+        }
+
+        function addOrUpgradePassive(p, passiveId) {
+            const existing = p.passives.find(x => x.id === passiveId);
+            const def = PASSIVES_DB.find(x => x.id === passiveId);
+            if (!def) return;
+            const maxLv = def.maxLv || 5;
+            if (existing) {
+                existing.level = Math.min(maxLv, existing.level + 1);
+                if (def.stat === 'revives') p.revivesLeft += 1;
+            } else if (p.passives.length < 6) {
+                p.passives.push({ id: def.id, level: 1, maxLv, def });
+                if (def.stat === 'revives') p.revivesLeft += 1;
+            }
+            recalculatePlayerStats(p);
+            renderHUDIcons();
+        }
+
+        // Render strictly icons in the top-left HUD
+        function renderHUDIcons() {
+            const wContainer = document.getElementById('hudWeapons');
+            const pContainer = document.getElementById('hudPassives');
+            if (!wContainer || !pContainer || !game.player) return;
+
+            wContainer.innerHTML = '';
+            for (let i = 0; i < 6; i++) {
+                const w = game.player.weapons[i];
+                const slot = document.createElement('div');
+                slot.className = `w-8 h-8 sm:w-9 sm:h-9 rounded-lg flex items-center justify-center relative border ${w ? (w.isEvolved ? 'bg-amber-950/90 border-amber-400 shadow-[0_0_10px_rgba(251,191,36,0.5)]' : 'bg-gray-900/90 border-gray-600') : 'bg-gray-950/50 border-gray-800/70'}`;
+                if (w) {
+                    slot.innerHTML = `
+                        <span class="text-base sm:text-lg">${w.def.icon}</span>
+                        <span class="absolute -bottom-1 -right-1 px-1 rounded bg-black/90 text-[9px] font-black ${w.isEvolved ? 'text-amber-300' : 'text-gray-200'}">${w.isEvolved ? '★' : w.level}</span>
+                    `;
+                }
+                wContainer.appendChild(slot);
+            }
+
+            pContainer.innerHTML = '';
+            for (let i = 0; i < 6; i++) {
+                const pas = game.player.passives[i];
+                const slot = document.createElement('div');
+                slot.className = `w-7 h-7 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center relative border ${pas ? 'bg-indigo-950/85 border-indigo-500/70' : 'bg-gray-950/40 border-gray-800/60'}`;
+                if (pas) {
+                    slot.innerHTML = `
+                        <span class="text-sm sm:text-base">${pas.def.icon}</span>
+                        <span class="absolute -bottom-1 -right-1 px-1 rounded bg-black/90 text-[9px] font-black text-indigo-200">${pas.level}</span>
+                    `;
+                }
+                pContainer.appendChild(slot);
+            }
+        }
+
+        /********************************************************************
+         * 9. WEAPON FIRING & DIRECTIONAL ANIMATIONS
+         ********************************************************************/
+        function updatePlayerWeapons(dt) {
+            const p = game.player;
+            const aimAngle = Math.atan2(inputState.aimY, inputState.aimX);
+
+            p.weapons.forEach(w => {
+                w.timer -= dt;
+                if (w.timer > 0) return;
+
+                const d = w.def;
+                const lvScale = 1 + (w.level - 1) * 0.22;
+                const dmg = Math.round(d.dmg * lvScale * p.stats.might);
+                const area = p.stats.area * (1 + (w.level - 1) * 0.06);
+                const count = 1 + (d.countBonus || 0) + p.stats.amount + Math.floor((w.level - 1) / 3);
+                w.timer = Math.max(0.1, d.cd * p.stats.cdr * Math.pow(0.96, w.level - 1));
+
+                if (d.behavior === 'directional_slash' || d.behavior === 'spin_slash' || d.behavior === 'directional_thrust') {
+                    for (let i = 0; i < count; i++) {
+                        const angleOffset = i === 0 ? 0 : (i % 2 === 1 ? Math.PI : (i * 0.35));
+                        game.meleeSlashes.push({
+                            x: p.x,
+                            y: p.y,
+                            angle: aimAngle + angleOffset,
+                            range: d.range * area,
+                            dmg,
+                            color: d.color,
+                            style: d.behavior,
+                            lifesteal: d.lifesteal || 0,
+                            life: 0.22,
+                            maxLife: 0.22,
+                            hitSet: new Set()
+                        });
+                    }
+                } else if (d.behavior === 'directional_beam') {
+                    game.meleeSlashes.push({
+                        x: p.x,
+                        y: p.y,
+                        angle: aimAngle,
+                        range: d.range * area,
+                        dmg,
+                        color: d.color,
+                        style: 'beam',
+                        lifesteal: 0,
+                        life: 0.25,
+                        maxLife: 0.25,
+                        hitSet: new Set()
+                    });
+                } else if (d.behavior === 'directional_proj' || d.behavior === 'directional_cone' || d.behavior === 'bounce_proj') {
+                    const spread = d.behavior === 'directional_cone' ? 0.18 : 0.09;
+                    for (let i = 0; i < count; i++) {
+                        const a = aimAngle + (i - (count - 1) / 2) * spread;
+                        game.projectiles.push({
+                            x: p.x, y: p.y,
+                            vx: Math.cos(a) * (d.speed * p.stats.projSpeed),
+                            vy: Math.sin(a) * (d.speed * p.stats.projSpeed),
+                            r: (d.behavior === 'directional_cone' ? 10 : 7) * area,
+                            dmg,
+                            pierce: (d.pierce || 1) + p.stats.pierce + Math.floor(w.level / 4),
+                            bounce: d.behavior === 'bounce_proj',
+                            color: d.color,
+                            icon: d.icon,
+                            life: (d.range / d.speed) * p.stats.duration,
+                            hitSet: new Set()
+                        });
+                    }
+                } else if (d.behavior === 'nearest_bolt' || d.behavior === 'homing_swarm') {
+                    for (let i = 0; i < count; i++) {
+                        let targetAngle = aimAngle + (i * 0.4);
+                        if (game.enemies.length > 0) {
+                            const sorted = [...game.enemies].sort((a, b) => Math.hypot(a.x - p.x, a.y - p.y) - Math.hypot(b.x - p.x, b.y - p.y));
+                            const t = sorted[i % sorted.length];
+                            if (t) targetAngle = Math.atan2(t.y - p.y, t.x - p.x);
+                        }
+                        game.projectiles.push({
+                            x: p.x, y: p.y,
+                            vx: Math.cos(targetAngle) * (d.speed * p.stats.projSpeed),
+                            vy: Math.sin(targetAngle) * (d.speed * p.stats.projSpeed),
+                            r: 8 * area,
+                            dmg,
+                            pierce: (d.pierce || 1) + p.stats.pierce,
+                            homing: d.behavior === 'homing_swarm',
+                            color: d.color,
+                            icon: d.icon,
+                            life: 1.4 * p.stats.duration,
+                            hitSet: new Set()
+                        });
+                    }
+                } else if (d.behavior === 'lob_arc' || d.behavior === 'boomerang' || d.behavior === 'nova_proj') {
+                    for (let i = 0; i < count; i++) {
+                        const a = d.behavior === 'nova_proj'
+                            ? (i / count) * Math.PI * 2
+                            : aimAngle + (i - (count - 1) / 2) * 0.22;
+                        const spd = (d.speed || 420) * p.stats.projSpeed;
+                        game.projectiles.push({
+                            x: p.x, y: p.y,
+                            vx: Math.cos(a) * spd,
+                            vy: Math.sin(a) * spd - (d.behavior === 'lob_arc' ? 180 : 0),
+                            gravity: d.behavior === 'lob_arc' ? 520 : 0,
+                            boomerang: d.behavior === 'boomerang',
+                            originVx: Math.cos(a) * spd,
+                            originVy: Math.sin(a) * spd,
+                            r: 12 * area,
+                            dmg,
+                            pierce: (d.pierce || 4) + p.stats.pierce,
+                            spin: 0,
+                            color: d.color,
+                            icon: d.icon,
+                            life: 1.6 * p.stats.duration,
+                            maxLife: 1.6 * p.stats.duration,
+                            hitSet: new Set()
+                        });
+                    }
+                } else if (d.behavior === 'orbit') {
+                    const orbitCount = count + 1;
+                    for (let i = 0; i < orbitCount; i++) {
+                        game.projectiles.push({
+                            x: p.x, y: p.y,
+                            isOrbit: true,
+                            orbitAngle: (i / orbitCount) * Math.PI * 2,
+                            orbitRadius: d.range * area,
+                            r: 11 * area,
+                            dmg,
+                            pierce: 999,
+                            color: d.color,
+                            icon: d.icon,
+                            life: (d.duration || 1.8) * p.stats.duration,
+                            hitCooldowns: new Map()
+                        });
+                    }
+                } else if (d.behavior === 'aura' || d.behavior === 'nova_ring') {
+                    const rad = d.range * area;
+                    game.meleeSlashes.push({
+                        x: p.x, y: p.y,
+                        range: rad,
+                        dmg,
+                        color: d.color,
+                        style: 'ring',
+                        lifesteal: d.lifesteal || 0,
+                        life: 0.25,
+                        maxLife: 0.25,
+                        hitSet: new Set()
+                    });
+                } else if (d.behavior === 'ground_pool') {
+                    for (let i = 0; i < Math.min(4, count); i++) {
+                        const dist = 70 + Math.random() * 110;
+                        const ang = Math.random() * Math.PI * 2;
+                        game.groundPools.push({
+                            x: p.x + Math.cos(ang) * dist,
+                            y: p.y + Math.sin(ang) * dist,
+                            r: d.range * area,
+                            dmg,
+                            color: d.color,
+                            life: (d.duration || 2.2) * p.stats.duration,
+                            tickTimer: 0
+                        });
+                    }
+                } else if (d.behavior === 'smite_random') {
+                    for (let i = 0; i < count; i++) {
+                        let tx = p.x + (Math.random() - 0.5) * 450;
+                        let ty = p.y + (Math.random() - 0.5) * 450;
+                        if (game.enemies.length > 0) {
+                            const e = game.enemies[Math.floor(Math.random() * game.enemies.length)];
+                            tx = e.x; ty = e.y;
+                        }
+                        game.groundPools.push({
+                            x: tx, y: ty,
+                            r: d.range * area,
+                            dmg,
+                            color: d.color,
+                            isSmite: true,
+                            life: 0.32,
+                            tickTimer: 0
+                        });
+                    }
+                }
+            });
+        }
+
+        /********************************************************************
+         * 10. ENEMY SPAWNER, BOSS CHESTS & GEM DROPS (1, 10, 100, GOLD, CHESTS)
+         ********************************************************************/
+        const ENEMY_TYPES = [
+            { name: 'Grave Bat', icon: '🦇', hp: 14, speed: 105, dmg: 6, r: 12, color: '#a855f7', xpTier: 1 },
+            { name: 'Risen Skeleton', icon: '💀', hp: 28, speed: 82, dmg: 9, r: 14, color: '#e5e7eb', xpTier: 1 },
+            { name: 'Plague Ghoul', icon: '🧟', hp: 52, speed: 75, dmg: 12, r: 16, color: '#4ade80', xpTier: 2 },
+            { name: 'Phantom Wraith', icon: '👻', hp: 85, speed: 112, dmg: 15, r: 16, color: '#38bdf8', xpTier: 2 },
+            { name: 'Blood Knight', icon: '🩸', hp: 165, speed: 92, dmg: 20, r: 19, color: '#ef4444', xpTier: 3 }
+        ];
+
+        let spawnAccumulator = 0;
+
+        function updateEnemySpawns(dt) {
+            const p = game.player;
+            const timeScale = 1 + (game.time / 55);
+            const rate = (2.2 + game.time * 0.06) * game.modeConfig.spawnRateMult;
+            spawnAccumulator += dt * rate;
+
+            while (spawnAccumulator >= 1 && game.enemies.length < 220) {
+                spawnAccumulator -= 1;
+                const angle = Math.random() * Math.PI * 2;
+                const dist = 540 + Math.random() * 180;
+                const ex = Math.max(80, Math.min(WORLD_SIZE - 80, p.x + Math.cos(angle) * dist));
+                const ey = Math.max(80, Math.min(WORLD_SIZE - 80, p.y + Math.sin(angle) * dist));
+
+                const maxIdx = Math.min(ENEMY_TYPES.length - 1, Math.floor(game.time / 35) + 1);
+                const type = ENEMY_TYPES[Math.floor(Math.random() * (maxIdx + 1))];
+
+                game.enemies.push({
+                    x: ex, y: ey,
+                    r: type.r,
+                    name: type.name,
+                    icon: type.icon,
+                    hp: Math.round(type.hp * timeScale),
+                    maxHp: Math.round(type.hp * timeScale),
+                    speed: type.speed * game.modeConfig.enemySpeedMult,
+                    dmg: type.dmg,
+                    color: type.color,
+                    xpTier: type.xpTier,
+                    isBoss: false,
+                    flash: 0
+                });
+            }
+
+            // Boss Spawner (Every 60s, or 40s in Boss Rush)
+            game.bossSpawnTimer -= dt * game.modeConfig.timeSpeed;
+            const bossAlert = document.getElementById('bossWarning');
+            if (game.bossSpawnTimer <= 6 && game.bossSpawnTimer > 0) {
+                bossAlert.classList.remove('hidden');
+            } else {
+                bossAlert.classList.add('hidden');
+            }
+
+            if (game.bossSpawnTimer <= 0) {
+                game.bossSpawnTimer = game.modeConfig.id === 'boss_rush' ? 40 : 60;
+                const angle = Math.random() * Math.PI * 2;
+                const bx = Math.max(120, Math.min(WORLD_SIZE - 120, p.x + Math.cos(angle) * 480));
+                const by = Math.max(120, Math.min(WORLD_SIZE - 120, p.y + Math.sin(angle) * 480));
+                const bossHp = Math.round(520 * timeScale);
+                game.enemies.push({
+                    x: bx, y: by,
+                    r: 28,
+                    name: 'Crypt Lord Boss',
+                    icon: '👹',
+                    hp: bossHp,
+                    maxHp: bossHp,
+                    speed: 98 * game.modeConfig.enemySpeedMult,
+                    dmg: 26,
+                    color: '#f59e0b',
+                    xpTier: 3,
+                    isBoss: true,
+                    flash: 0
+                });
+                spawnFloatingText(p.x, p.y - 45, '⚠ CRYPT LORD SPAWNED!', '#fbbf24');
+            }
+        }
+
+        function handleEnemyDefeated(enemy) {
+            game.kills++;
+            const luck = game.player.stats.luck;
+
+            // Every Boss drops a Weapon Chest that gives a random weapon upgrade or Evolution!
+            if (enemy.isBoss) {
+                game.gems.push({
+                    x: enemy.x,
+                    y: enemy.y,
+                    type: 'boss_chest',
+                    val: 100,
+                    r: 18
+                });
+                // Unlock Hyper mode on first boss defeat
+                if (!saveData.unlockedModes.includes('hyper')) {
+                    saveData.unlockedModes.push('hyper');
+                }
+            }
+
+            // Gem drop rules: Blue for 1 XP, Green for 10 XP, Red for 100 XP
+            const roll = Math.random();
+            let gemType = 'blue';
+            let xpVal = 1;
+            if (enemy.isBoss || roll < 0.025 * luck || (enemy.xpTier === 3 && roll < 0.25)) {
+                gemType = 'red';
+                xpVal = 100;
+            } else if (roll < 0.22 * luck || enemy.xpTier >= 2) {
+                gemType = 'green';
+                xpVal = 10;
+            }
+
+            game.gems.push({
+                x: enemy.x + (Math.random() - 0.5) * 12,
+                y: enemy.y + (Math.random() - 0.5) * 12,
+                type: gemType,
+                val: xpVal,
+                r: gemType === 'red' ? 9 : (gemType === 'green' ? 7.5 : 6)
+            });
+
+            // Small chance to drop Gold Coin (3.5% base * luck)
+            if (Math.random() < 0.038 * luck) {
+                game.gems.push({
+                    x: enemy.x + (Math.random() - 0.5) * 20,
+                    y: enemy.y + (Math.random() - 0.5) * 20,
+                    type: 'gold',
+                    val: Math.max(1, Math.round(1 * game.player.stats.greed * game.modeConfig.goldMult)),
+                    r: 8
+                });
+            }
+
+            // Even lower chance to drop a Gold Chest (0.45% base * luck)
+            if (!enemy.isBoss && Math.random() < 0.0045 * luck) {
+                game.gems.push({
+                    x: enemy.x,
+                    y: enemy.y,
+                    type: 'gold_chest',
+                    val: 25,
+                    r: 15
+                });
+                spawnFloatingText(enemy.x, enemy.y - 15, '✨ GOLD CHEST DROPPED!', '#fde047');
+            }
+        }
+
+        function damageEnemy(enemy, rawDmg, lifestealAmount = 0) {
+            const p = game.player;
+            const isCrit = Math.random() < p.stats.critChance;
+            const finalDmg = Math.max(1, Math.round(rawDmg * (isCrit ? p.stats.critMult : 1)));
+            enemy.hp -= finalDmg;
+            enemy.flash = 0.1;
+            sfx.play('hit');
+
+            if (lifestealAmount > 0 || (p.stats.lifesteal > 0 && Math.random() < p.stats.lifesteal)) {
+                p.hp = Math.min(p.maxHp, p.hp + (lifestealAmount || 1));
+            }
+
+            spawnFloatingText(
+                enemy.x + (Math.random() - 0.5) * 14,
+                enemy.y - 12,
+                isCrit ? `${finalDmg}!` : `${finalDmg}`,
+                isCrit ? '#facc15' : '#f3f4f6'
+            );
+        }
+
+        function spawnFloatingText(x, y, text, color) {
+            if (game.floatingTexts.length > 45) game.floatingTexts.shift();
+            game.floatingTexts.push({ x, y, text, color, life: 0.65 });
+        }
+
+        /********************************************************************
+         * 11. HOUSE COLLISION & PHYSICS UPDATE
+         ********************************************************************/
+        function resolveHouseCollision(entity) {
+            entity.x = Math.max(40, Math.min(WORLD_SIZE - 40, entity.x));
+            entity.y = Math.max(40, Math.min(WORLD_SIZE - 40, entity.y));
+
+            for (const h of worldObjects.houses) {
+                const closestX = Math.max(h.x, Math.min(entity.x, h.x + h.w));
+                const closestY = Math.max(h.y, Math.min(entity.y, h.y + h.h));
+                const dx = entity.x - closestX;
+                const dy = entity.y - closestY;
+                const distSq = dx * dx + dy * dy;
+                if (distSq < entity.r * entity.r) {
+                    const dist = Math.sqrt(distSq) || 0.01;
+                    const overlap = entity.r - dist;
+                    entity.x += (dx / dist) * overlap;
+                    entity.y += (dy / dist) * overlap;
+                }
+            }
+        }
+
+        function updateSimulation(dt) {
+            const p = game.player;
+            game.time += dt * game.modeConfig.timeSpeed;
+
+            // Player Regeneration & Invulnerability
+            if (p.stats.regen > 0) {
+                p.hp = Math.min(p.maxHp, p.hp + p.stats.regen * dt);
+            }
+            if (p.invulnTimer > 0) p.invulnTimer -= dt;
+
+            // Move Player
+            p.x += inputState.moveX * p.stats.moveSpeed * dt;
+            p.y += inputState.moveY * p.stats.moveSpeed * dt;
+            if (Math.hypot(inputState.moveX, inputState.moveY) > 0.1) {
+                p.walkFrame += dt * 10;
+            }
+            resolveHouseCollision(p);
+
+            // Update Weapons & Spawns
+            updatePlayerWeapons(dt);
+            updateEnemySpawns(dt);
+
+            // Update Melee Slashes / Beams / Rings
+            for (let i = game.meleeSlashes.length - 1; i >= 0; i--) {
+                const s = game.meleeSlashes[i];
+                s.x = p.x;
+                s.y = p.y;
+                s.life -= dt;
+
+                for (const e of game.enemies) {
+                    if (s.hitSet.has(e)) continue;
+                    const dx = e.x - s.x;
+                    const dy = e.y - s.y;
+                    const dist = Math.hypot(dx, dy);
+                    if (dist <= s.range + e.r) {
+                        if (s.style === 'ring') {
+                            s.hitSet.add(e);
+                            damageEnemy(e, s.dmg, s.lifesteal);
+                        } else {
+                            const angleToEnemy = Math.atan2(dy, dx);
+                            let diff = Math.abs( Math.atan2(Math.sin(angleToEnemy - s.angle), Math.cos(angleToEnemy - s.angle)) );
+                            const coneLimit = s.style === 'beam' ? 0.22 : (s.style === 'directional_thrust' ? 0.38 : 1.05);
+                            if (diff <= coneLimit) {
+                                s.hitSet.add(e);
+                                damageEnemy(e, s.dmg, s.lifesteal);
+                            }
+                        }
+                    }
+                }
+                if (s.life <= 0) game.meleeSlashes.splice(i, 1);
+            }
+
+            // Update Ground Pools & Lightning Smites
+            for (let i = game.groundPools.length - 1; i >= 0; i--) {
+                const pool = game.groundPools[i];
+                pool.life -= dt;
+                pool.tickTimer -= dt;
+                if (pool.tickTimer <= 0) {
+                    pool.tickTimer = 0.35;
+                    for (const e of game.enemies) {
+                        if (Math.hypot(e.x - pool.x, e.y - pool.y) <= pool.r + e.r) {
+                            damageEnemy(e, pool.dmg);
+                        }
+                    }
+                }
+                if (pool.life <= 0) game.groundPools.splice(i, 1);
+            }
+
+            // Update Projectiles
+            const camLeft = p.x - window.innerWidth / 2;
+            const camRight = p.x + window.innerWidth / 2;
+            const camTop = p.y - window.innerHeight / 2;
+            const camBottom = p.y + window.innerHeight / 2;
+
+            for (let i = game.projectiles.length - 1; i >= 0; i--) {
+                const proj = game.projectiles[i];
+                proj.life -= dt;
+
+                if (proj.isOrbit) {
+                    proj.orbitAngle += dt * 4.2;
+                    proj.x = p.x + Math.cos(proj.orbitAngle) * proj.orbitRadius;
+                    proj.y = p.y + Math.sin(proj.orbitAngle) * proj.orbitRadius;
+                } else {
+                    if (proj.gravity) proj.vy += proj.gravity * dt;
+                    if (proj.boomerang && proj.life < proj.maxLife * 0.55) {
+                        proj.vx -= proj.originVx * dt * 2.6;
+                        proj.vy -= proj.originVy * dt * 2.6;
+                    }
+                    if (proj.homing && game.enemies.length > 0) {
+                        const target = game.enemies[0];
+                        const ta = Math.atan2(target.y - proj.y, target.x - proj.x);
+                        proj.vx += Math.cos(ta) * 600 * dt;
+                        proj.vy += Math.sin(ta) * 600 * dt;
+                    }
+                    proj.x += proj.vx * dt;
+                    proj.y += proj.vy * dt;
+
+                    if (proj.bounce) {
+                        if (proj.x < camLeft || proj.x > camRight) proj.vx *= -1;
+                        if (proj.y < camTop || proj.y > camBottom) proj.vy *= -1;
+                    }
+                }
+
+                // Collision with Enemies
+                for (const e of game.enemies) {
+                    if (proj.hitSet && proj.hitSet.has(e)) continue;
+                    if (proj.hitCooldowns && (proj.hitCooldowns.get(e) || 0) > game.time) continue;
+
+                    if (Math.hypot(e.x - proj.x, e.y - proj.y) <= proj.r + e.r) {
+                        damageEnemy(e, proj.dmg);
+                        if (proj.isOrbit) {
+                            proj.hitCooldowns.set(e, game.time + 0.4);
+                        } else {
+                            proj.hitSet.add(e);
+                            proj.pierce--;
+                            if (proj.pierce <= 0) {
+                                proj.life = 0;
+                                break;
+                            }
+                        }
+                    }
+                }
+
+                if (proj.life <= 0) game.projectiles.splice(i, 1);
+            }
+
+            // Update Enemies & Player Contact Damage
+            for (let i = game.enemies.length - 1; i >= 0; i--) {
+                const e = game.enemies[i];
+                if (e.hp <= 0) {
+                    handleEnemyDefeated(e);
+                    game.enemies.splice(i, 1);
+                    continue;
+                }
+                if (e.flash > 0) e.flash -= dt;
+
+                const ang = Math.atan2(p.y - e.y, p.x - e.x);
+                e.x += Math.cos(ang) * e.speed * dt;
+                e.y += Math.sin(ang) * e.speed * dt;
+                if (!e.isBoss) resolveHouseCollision(e);
+
+                // Player collision
+                const distToPlayer = Math.hypot(p.x - e.x, p.y - e.y);
+                if (distToPlayer < p.r + e.r) {
+                    if (p.invulnTimer <= 0) {
+                        const taken = Math.max(1, Math.round(e.dmg - p.stats.armor));
+                        p.hp -= taken;
+                        p.invulnTimer = 0.35;
+                        spawnFloatingText(p.x, p.y - 20, `-${taken}`, '#ef4444');
+                        if (p.stats.thorns > 0) damageEnemy(e, p.stats.thorns);
+
+                        if (p.hp <= 0) {
+                            if (p.revivesLeft > 0) {
+                                p.revivesLeft--;
+                                p.hp = Math.round(p.maxHp * 0.5);
+                                p.invulnTimer = 2.0;
+                                spawnFloatingText(p.x, p.y - 30, '👼 REVIVED!', '#fde047');
+                            } else {
+                                triggerGameOver();
+                                return;
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Update Gems, Coins & Chests
+            for (let i = game.gems.length - 1; i >= 0; i--) {
+                const g = game.gems[i];
+                const dist = Math.hypot(p.x - g.x, p.y - g.y);
+                const pullRadius = (g.type === 'boss_chest' || g.type === 'gold_chest') ? 55 : p.stats.magnet;
+
+                if (dist < pullRadius) {
+                    const pullAng = Math.atan2(p.y - g.y, p.x - g.x);
+                    g.x += Math.cos(pullAng) * 440 * dt;
+                    g.y += Math.sin(pullAng) * 440 * dt;
+                }
+
+                if (dist < p.r + g.r + 6) {
+                    if (g.type === 'boss_chest') {
+                        game.gems.splice(i, 1);
+                        openChestReward('boss');
+                        break;
+                    } else if (g.type === 'gold_chest') {
+                        game.gems.splice(i, 1);
+                        openChestReward('gold');
+                        break;
+                    } else if (g.type === 'gold') {
+                        sfx.play('coin');
+                        game.runCoins += g.val;
+                        saveData.coins += g.val;
+                        triggerSave();
+                        spawnFloatingText(p.x, p.y - 18, `+${g.val} 🪙`, '#fbbf24');
+                        game.gems.splice(i, 1);
+                    } else {
+                        sfx.play('gem');
+                        p.xp += Math.round(g.val * p.stats.xpMult);
+                        game.gems.splice(i, 1);
+                        if (p.xp >= p.nextXp) {
+                            p.xp -= p.nextXp;
+                            p.level++;
+                            p.nextXp = Math.round(10 + p.level * 12 + Math.pow(p.level, 1.35));
+                            triggerLevelUpModal();
+                            break;
+                        }
+                    }
+                }
+            }
+
+            // Floating Texts
+            for (let i = game.floatingTexts.length - 1; i >= 0; i--) {
+                const ft = game.floatingTexts[i];
+                ft.y -= 28 * dt;
+                ft.life -= dt;
+                if (ft.life <= 0) game.floatingTexts.splice(i, 1);
+            }
+
+            updateHUDMetrics();
+        }
+
+        function updateHUDMetrics() {
+            const p = game.player;
+            if (!p) return;
+            document.getElementById('xpBarFill').style.width = `${Math.min(100, (p.xp / p.nextXp) * 100)}%`;
+            document.getElementById('hudLevelText').textContent = `LV ${p.level}`;
+            document.getElementById('hudXpText').textContent = `${p.xp} / ${p.nextXp} XP`;
+
+            document.getElementById('hpBarFill').style.width = `${Math.max(0, (p.hp / p.maxHp) * 100)}%`;
+            document.getElementById('hudHpText').textContent = `${Math.ceil(p.hp)} / ${p.maxHp}`;
+
+            const mins = String(Math.floor(game.time / 60)).padStart(2, '0');
+            const secs = String(Math.floor(game.time % 60)).padStart(2, '0');
+            document.getElementById('hudTimer').textContent = `${mins}:${secs}`;
+            document.getElementById('hudCoins').textContent = `${saveData.coins} (+${game.runCoins})`;
+            document.getElementById('hudKills').textContent = game.kills;
+        }
+
+        /********************************************************************
+         * 12. LEVEL UP & BOSS / GOLD CHEST EVOLUTION SYSTEM
+         ********************************************************************/
+        function getAvailableUpgrades() {
+            const p = game.player;
+            const pool = [];
+
+            // Check Evolution readiness first
+            p.weapons.forEach(w => {
+                if (!w.isEvolved && w.level >= 5 && w.def.evolvesTo) {
+                    const hasCatalyst = p.passives.some(pas => pas.id === w.def.evoPassive);
+                    if (hasCatalyst) {
+                        const evo = EVOLUTIONS_DB[w.def.evolvesTo];
+                        if (evo) {
+                            pool.push({ kind: 'evolution', item: evo, currentLv: 0, priority: 100 });
+                        }
+                    }
+                }
+            });
+
+            // Weapons
+            WEAPONS_DB.forEach(w => {
+                const owned = p.weapons.find(x => x.id === w.id || (x.isEvolved && x.def.baseId === w.id));
+                if (owned) {
+                    if (!owned.isEvolved && owned.level < 8) {
+                        pool.push({ kind: 'weapon', item: w, currentLv: owned.level, priority: 10 });
+                    }
+                } else if (p.weapons.length < 6) {
+                    pool.push({ kind: 'weapon', item: w, currentLv: 0, priority: 5 });
+                }
+            });
+
+            // Passives
+            PASSIVES_DB.forEach(pas => {
+                const owned = p.passives.find(x => x.id === pas.id);
+                const maxLv = pas.maxLv || 5;
+                if (owned) {
+                    if (owned.level < maxLv) {
+                        pool.push({ kind: 'passive', item: pas, currentLv: owned.level, priority: 9 });
+                    }
+                } else if (p.passives.length < 6) {
+                    pool.push({ kind: 'passive', item: pas, currentLv: 0, priority: 4 });
+                }
+            });
+
+            // Shuffle & weight
+            const evolutions = pool.filter(x => x.kind === 'evolution');
+            const others = pool.filter(x => x.kind !== 'evolution').sort(() => Math.random() - 0.5);
+            const selected = [...evolutions, ...others].slice(0, 3);
+
+            while (selected.length < 3) {
+                selected.push({
+                    kind: 'fallback',
+                    item: { id: 'coin_bag', name: 'Graveyard Gold Bag', icon: '💰', desc: 'Instantly grants +15 Gold Coins and heals 30% HP.' },
+                    currentLv: 0
+                });
+            }
+            return selected;
+        }
+
+        function triggerLevelUpModal() {
+            game.state = 'levelup';
+            sfx.play('levelup');
+            const modal = document.getElementById('levelUpModal');
+            modal.classList.remove('hidden');
+            populateUpgradeCards();
+        }
+
+        function populateUpgradeCards() {
+            const choices = getAvailableUpgrades();
+            const container = document.getElementById('upgradeChoicesContainer');
+            container.innerHTML = '';
+
+            choices.forEach((c) => {
+                const btn = document.createElement('button');
+                const isEvo = c.kind === 'evolution';
+                btn.className = `upgrade-nav card-transition text-left p-4 rounded-2xl border-2 flex flex-col justify-between gap-3 ${
+                    isEvo ? 'bg-gradient-to-b from-amber-950 to-red-950 border-amber-400' :
+                    c.kind === 'weapon' ? 'bg-gray-900/95 border-red-800/80 hover:border-red-500' :
+                    'bg-gray-900/95 border-indigo-800/80 hover:border-indigo-400'
+                }`;
+
+                const badgeText = isEvo ? '★ WEAPON EVOLUTION ★' :
+                    c.currentLv === 0 ? `NEW ${c.kind.toUpperCase()}` : `LV ${c.currentLv} ➔ LV ${c.currentLv + 1}`;
+
+                btn.innerHTML = `
+                    <div>
+                        <div class="flex justify-between items-center mb-2">
+                            <span class="text-3xl">${c.item.icon}</span>
+                            <span class="px-2 py-0.5 rounded text-[10px] font-black uppercase ${isEvo ? 'bg-amber-400 text-gray-950' : 'bg-gray-800 text-amber-300'}">${badgeText}</span>
+                        </div>
+                        <div class="font-gothic text-lg font-bold text-white">${c.item.name}</div>
+                        <p class="text-xs text-gray-300 mt-1 leading-relaxed">${c.item.desc}</p>
+                    </div>
+                    <div class="text-[11px] font-bold text-amber-400 pt-2 border-t border-gray-800/80">
+                        ${c.item.directional ? '🎯 Follows Stick / Aim Direction' : '⚡ Automatic Relic Effect'}
+                    </div>
+                `;
+
+                btn.onclick = () => {
+                    if (c.kind === 'evolution' || c.kind === 'weapon') {
+                        addOrUpgradeWeapon(game.player, c.item.id);
+                    } else if (c.kind === 'passive') {
+                        addOrUpgradePassive(game.player, c.item.id);
+                    } else {
+                        game.runCoins += 15;
+                        saveData.coins += 15;
+                        game.player.hp = Math.min(game.player.maxHp, game.player.hp + Math.round(game.player.maxHp * 0.3));
+                        triggerSave();
+                    }
+                    document.getElementById('levelUpModal').classList.add('hidden');
+                    game.state = 'playing';
+                };
+                container.appendChild(btn);
+            });
+
+            const rerollBtn = document.getElementById('rerollBtn');
+            const cost = game.rerollsUsed === 0 ? 0 : 5;
+            rerollBtn.textContent = cost === 0 ? '🎲 Reroll Choices (1st Free!)' : `🎲 Reroll Choices (${cost} 🪙)`;
+            refreshUIFocus(true);
+        }
+
+        function rerollLevelChoices() {
+            const cost = game.rerollsUsed === 0 ? 0 : 5;
+            if (saveData.coins < cost) return;
+            saveData.coins -= cost;
+            game.rerollsUsed++;
+            triggerSave();
+            sfx.play('ui');
+            populateUpgradeCards();
+        }
+
+        function openChestReward(chestType) {
+            game.state = 'chest';
+            sfx.play('chest');
+            const p = game.player;
+            const modal = document.getElementById('chestModal');
+            const card = document.getElementById('chestRewardCard');
+            const title = document.getElementById('chestModalTitle');
+            modal.classList.remove('hidden');
+
+            // 1. Check for ready Weapon Evolution
+            let evolvedReward = null;
+            for (const w of p.weapons) {
+                if (!w.isEvolved && w.level >= 5 && w.def.evolvesTo) {
+                    if (p.passives.some(pas => pas.id === w.def.evoPassive)) {
+                        evolvedReward = EVOLUTIONS_DB[w.def.evolvesTo];
+                        break;
+                    }
+                }
+            }
+
+            if (evolvedReward) {
+                addOrUpgradeWeapon(p, evolvedReward.id);
+                title.textContent = '★ WEAPON EVOLVED! ★';
+                card.innerHTML = `
+                    <div class="text-5xl my-1">${evolvedReward.icon}</div>
+                    <div class="font-gothic text-2xl font-black text-amber-300">${evolvedReward.name}</div>
+                    <p class="text-xs text-gray-200">${evolvedReward.desc}</p>
+                    <div class="text-xs font-extrabold text-emerald-400 mt-1">+10 Bonus Gold Coins</div>
+                `;
+                game.runCoins += 10;
+                saveData.coins += 10;
+            } else {
+                // 2. Random Weapon Upgrade for equipped weapons (or new weapon if all maxed)
+                const upgradableWeapons = p.weapons.filter(w => !w.isEvolved && w.level < 8);
+                let chosenWeaponDef = null;
+                if (upgradableWeapons.length > 0) {
+                    const pick = upgradableWeapons[Math.floor(Math.random() * upgradableWeapons.length)];
+                    addOrUpgradeWeapon(p, pick.id);
+                    chosenWeaponDef = pick.def;
+                } else if (p.weapons.length < 6) {
+                    const unowned = WEAPONS_DB.filter(w => !p.weapons.some(pw => pw.id === w.id));
+                    const pick = unowned[Math.floor(Math.random() * unowned.length)];
+                    if (pick) {
+                        addOrUpgradeWeapon(p, pick.id);
+                        chosenWeaponDef = pick;
+                    }
+                }
+
+                const bonusGold = chestType === 'gold' ? Math.round(25 * p.stats.greed) : Math.round(12 * p.stats.greed);
+                game.runCoins += bonusGold;
+                saveData.coins += bonusGold;
+
+                title.textContent = chestType === 'gold' ? '✨ RARE GOLD CHEST! ✨' : '🧰 BOSS WEAPON CHEST!';
+                card.innerHTML = chosenWeaponDef ? `
+                    <div class="text-5xl my-1">${chosenWeaponDef.icon}</div>
+                    <div class="font-gothic text-xl font-black text-white">${chosenWeaponDef.name} Upgraded!</div>
+                    <p class="text-xs text-gray-300">${chosenWeaponDef.desc}</p>
+                    <div class="text-sm font-black text-amber-400 mt-2">+${bonusGold} Gold Coins 🪙</div>
+                ` : `
+                    <div class="text-5xl my-1">💰</div>
+                    <div class="font-gothic text-xl font-black text-amber-300">Treasury Jackpot!</div>
+                    <div class="text-base font-black text-amber-400 mt-1">+${bonusGold + 20} Gold Coins 🪙</div>
+                `;
+            }
+
+            triggerSave();
+            refreshUIFocus(true);
+        }
+
+        function closeChestModal() {
+            document.getElementById('chestModal').classList.add('hidden');
+            game.state = 'playing';
+        }
+
+        /********************************************************************
+         * 13. RENDERING ENGINE (GRASSY GRAVEYARD, LARGE HOUSES, DIRECTIONAL AIM)
+         ********************************************************************/
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+
+        function renderGame() {
+            ctx.fillStyle = '#0c1a12';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            const p = game.player;
+            if (!p) return;
+
+            const camX = p.x - canvas.width / 2;
+            const camY = p.y - canvas.height / 2;
+
+            ctx.save();
+            ctx.translate(-camX, -camY);
+
+            // 1. Grassy Graveyard Tiled Ground & Cobblestone Paths
+            const tileSize = 120;
+            const startCol = Math.max(0, Math.floor(camX / tileSize));
+            const endCol = Math.min(Math.ceil(WORLD_SIZE / tileSize), Math.ceil((camX + canvas.width) / tileSize));
+            const startRow = Math.max(0, Math.floor(camY / tileSize));
+            const endRow = Math.min(Math.ceil(WORLD_SIZE / tileSize), Math.ceil((camY + canvas.height) / tileSize));
+
+            for (let c = startCol; c < endCol; c++) {
+                for (let r = startRow; r < endRow; r++) {
+                    const tx = c * tileSize;
+                    const ty = r * tileSize;
+                    const isEven = (c + r) % 2 === 0;
+                    ctx.fillStyle = isEven ? '#0f2318' : '#12291c';
+                    ctx.fillRect(tx, ty, tileSize, tileSize);
+
+                    // Grass blades detail
+                    ctx.strokeStyle = '#1b3d29';
+                    ctx.lineWidth = 2;
+                    ctx.beginPath();
+                    ctx.moveTo(tx + 28, ty + 45);
+                    ctx.lineTo(tx + 24, ty + 35);
+                    ctx.moveTo(tx + 32, ty + 45);
+                    ctx.lineTo(tx + 36, ty + 34);
+                    ctx.moveTo(tx + 85, ty + 90);
+                    ctx.lineTo(tx + 82, ty + 80);
+                    ctx.stroke();
+                }
+            }
+
+            // Central Graveyard Crossroad Paths
+            ctx.fillStyle = '#1f2421';
+            ctx.fillRect(0, 1940, WORLD_SIZE, 120);
+            ctx.fillRect(1940, 0, 120, WORLD_SIZE);
+
+            // World Border Iron Fence
+            ctx.strokeStyle = '#4b5563';
+            ctx.lineWidth = 8;
+            ctx.strokeRect(20, 20, WORLD_SIZE - 40, WORLD_SIZE - 40);
+
+            // 2. Gravestones & Dead Trees
+            for (const g of worldObjects.gravestones) {
+                if (g.x < camX - 60 || g.x > camX + canvas.width + 60 || g.y < camY - 60 || g.y > camY + canvas.height + 60) continue;
+                ctx.fillStyle = 'rgba(0,0,0,0.45)';
+                ctx.fillRect(g.x - 10, g.y + 10, 24, 8);
+                ctx.fillStyle = '#6b7280';
+                ctx.fillRect(g.x - 11, g.y - 16, 22, 28);
+                ctx.fillStyle = '#9ca3af';
+                ctx.fillRect(g.x - 9, g.y - 14, 18, 6);
+            }
+
+            for (const t of worldObjects.trees) {
+                if (t.x < camX - 60 || t.x > camX + canvas.width + 60 || t.y < camY - 60 || t.y > camY + canvas.height + 60) continue;
+                ctx.fillStyle = '#3f2e21';
+                ctx.beginPath();
+                ctx.arc(t.x, t.y, t.r, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.strokeStyle = '#1f2937';
+                ctx.lineWidth = 3;
+                ctx.stroke();
+            }
+
+            // 3. Large Haunted Houses / Crypt Manors
+            for (const h of worldObjects.houses) {
+                if (h.x + h.w < camX - 100 || h.x > camX + canvas.width + 100 || h.y + h.h < camY - 100 || h.y > camY + canvas.height + 100) continue;
+
+                // Shadow
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.55)';
+                ctx.fillRect(h.x + 14, h.y + 16, h.w, h.h);
+
+                // Stone Walls
+                ctx.fillStyle = '#1f2937';
+                ctx.fillRect(h.x, h.y, h.w, h.h);
+                ctx.strokeStyle = '#4b5563';
+                ctx.lineWidth = 4;
+                ctx.strokeRect(h.x, h.y, h.w, h.h);
+
+                // Pitched Gabled Roof
+                ctx.fillStyle = '#311b2b';
+                ctx.fillRect(h.x + 10, h.y + 10, h.w - 20, h.h - 38);
+                ctx.strokeStyle = '#581c87';
+                ctx.lineWidth = 2;
+                ctx.strokeRect(h.x + 10, h.y + 10, h.w - 20, h.h - 38);
+
+                // Roof Ridge Line
+                ctx.strokeStyle = '#7e22ce';
+                ctx.beginPath();
+                ctx.moveTo(h.x + 12, h.y + (h.h - 28) / 2);
+                ctx.lineTo(h.x + h.w - 12, h.y + (h.h - 28) / 2);
+                ctx.stroke();
+
+                // Warm Glowing Haunted Windows & Arched Door
+                ctx.fillStyle = '#f59e0b';
+                ctx.fillRect(h.x + 32, h.y + h.h - 22, 26, 14);
+                ctx.fillRect(h.x + h.w - 58, h.y + h.h - 22, 26, 14);
+
+                ctx.fillStyle = '#451a03';
+                ctx.fillRect(h.x + h.w / 2 - 18, h.y + h.h - 26, 36, 26);
+
+                // Manor Nameplate
+                ctx.fillStyle = 'rgba(255,255,255,0.65)';
+                ctx.font = 'bold 11px Cinzel, serif';
+                ctx.textAlign = 'center';
+                ctx.fillText(h.name, h.x + h.w / 2, h.y + h.h / 2);
+            }
+
+            // 4. Ground Pools & Lightning Smites
+            for (const pool of game.groundPools) {
+                ctx.save();
+                if (pool.isSmite) {
+                    ctx.strokeStyle = pool.color;
+                    ctx.lineWidth = 5;
+                    ctx.beginPath();
+                    ctx.moveTo(pool.x - 15, pool.y - 320);
+                    ctx.lineTo(pool.x + 10, pool.y - 160);
+                    ctx.lineTo(pool.x - 8, pool.y - 70);
+                    ctx.lineTo(pool.x, pool.y);
+                    ctx.stroke();
+                }
+                ctx.fillStyle = pool.color + '44';
+                ctx.strokeStyle = pool.color;
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.arc(pool.x, pool.y, pool.r, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.stroke();
+                ctx.restore();
+            }
+
+            // 5. Gems (Blue=1, Green=10, Red=100), Coins & Chests
+            for (const g of game.gems) {
+                if (g.x < camX - 50 || g.x > camX + canvas.width + 50 || g.y < camY - 50 || g.y > camY + canvas.height + 50) continue;
+                ctx.save();
+                if (g.type === 'boss_chest' || g.type === 'gold_chest') {
+                    ctx.font = '24px sans-serif';
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillText(g.type === 'boss_chest' ? '🧰' : '✨', g.x, g.y);
+                } else if (g.type === 'gold') {
+                    ctx.fillStyle = '#facc15';
+                    ctx.strokeStyle = '#854d0e';
+                    ctx.lineWidth = 2;
+                    ctx.beginPath();
+                    ctx.arc(g.x, g.y, g.r, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.stroke();
+                } else {
+                    ctx.fillStyle = g.type === 'red' ? '#ef4444' : (g.type === 'green' ? '#22c55e' : '#3b82f6');
+                    ctx.strokeStyle = '#ffffff';
+                    ctx.lineWidth = 1.2;
+                    ctx.beginPath();
+                    ctx.moveTo(g.x, g.y - g.r);
+                    ctx.lineTo(g.x + g.r, g.y);
+                    ctx.lineTo(g.x, g.y + g.r);
+                    ctx.lineTo(g.x - g.r, g.y);
+                    ctx.closePath();
+                    ctx.fill();
+                    ctx.stroke();
+                }
+                ctx.restore();
+            }
+
+            // 6. Enemies & Bosses
+            for (const e of game.enemies) {
+                if (e.x < camX - 60 || e.x > camX + canvas.width + 60 || e.y < camY - 60 || e.y > camY + canvas.height + 60) continue;
+                ctx.save();
+                ctx.fillStyle = e.flash > 0 ? '#ffffff' : e.color + '44';
+                ctx.strokeStyle = e.flash > 0 ? '#ffffff' : e.color;
+                ctx.lineWidth = e.isBoss ? 3.5 : 2;
+                ctx.beginPath();
+                ctx.arc(e.x, e.y, e.r, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.stroke();
+
+                ctx.font = `${e.isBoss ? 28 : 18}px sans-serif`;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(e.icon, e.x, e.y);
+
+                if (e.isBoss) {
+                    const bw = 54;
+                    ctx.fillStyle = '#111827';
+                    ctx.fillRect(e.x - bw / 2, e.y - e.r - 12, bw, 6);
+                    ctx.fillStyle = '#f59e0b';
+                    ctx.fillRect(e.x - bw / 2, e.y - e.r - 12, bw * Math.max(0, e.hp / e.maxHp), 6);
+                }
+                ctx.restore();
+            }
+
+            // 7. Directional Aim Indicator Reticle & Melee Animations
+            const aimAng = Math.atan2(inputState.aimY, inputState.aimX);
+            ctx.save();
+            ctx.translate(p.x, p.y);
+            ctx.rotate(aimAng);
+            ctx.strokeStyle = 'rgba(251, 191, 36, 0.7)';
+            ctx.fillStyle = 'rgba(251, 191, 36, 0.35)';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(36, 0);
+            ctx.lineTo(24, -7);
+            ctx.lineTo(27, 0);
+            ctx.lineTo(24, 7);
+            ctx.closePath();
+            ctx.fill();
+            ctx.stroke();
+            ctx.restore();
+
+            // Melee Slashes / Beams / Rings
+            for (const s of game.meleeSlashes) {
+                ctx.save();
+                const alpha = Math.max(0.1, s.life / s.maxLife);
+                ctx.globalAlpha = alpha;
+                ctx.strokeStyle = s.color;
+                ctx.fillStyle = s.color + '44';
+
+                if (s.style === 'ring') {
+                    ctx.lineWidth = 3;
+                    ctx.beginPath();
+                    ctx.arc(s.x, s.y, s.range, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.stroke();
+                } else if (s.style === 'beam') {
+                    ctx.lineWidth = 14;
+                    ctx.beginPath();
+                    ctx.moveTo(s.x, s.y);
+                    ctx.lineTo(s.x + Math.cos(s.angle) * s.range, s.y + Math.sin(s.angle) * s.range);
+                    ctx.stroke();
+                } else {
+                    ctx.lineWidth = 6;
+                    ctx.beginPath();
+                    ctx.moveTo(s.x, s.y);
+                    ctx.arc(s.x, s.y, s.range, s.angle - 0.65, s.angle + 0.65);
+                    ctx.closePath();
+                    ctx.fill();
+                    ctx.stroke();
+                }
+                ctx.restore();
+            }
+
+            // 8. Projectiles
+            for (const proj of game.projectiles) {
+                ctx.save();
+                ctx.fillStyle = proj.color;
+                ctx.beginPath();
+                ctx.arc(proj.x, proj.y, proj.r, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.font = `${Math.max(12, Math.round(proj.r * 1.4))}px sans-serif`;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(proj.icon || '✦', proj.x, proj.y);
+                ctx.restore();
+            }
+
+            // 9. Player Sprite
+            ctx.save();
+            const bobOffset = Math.sin(p.walkFrame) * 3;
+            ctx.fillStyle = p.invulnTimer > 0 ? '#ef4444' : '#1e1b4b';
+            ctx.strokeStyle = '#fbbf24';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.arc(p.x, p.y + bobOffset, p.r, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+
+            ctx.font = '22px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(p.charDef.icon, p.x, p.y + bobOffset);
+            ctx.restore();
+
+            // 10. Floating Damage Numbers
+            for (const ft of game.floatingTexts) {
+                ctx.save();
+                ctx.globalAlpha = Math.max(0, ft.life / 0.65);
+                ctx.font = 'bold 13px Inter, sans-serif';
+                ctx.fillStyle = ft.color;
+                ctx.textAlign = 'center';
+                ctx.fillText(ft.text, ft.x, ft.y);
+                ctx.restore();
+            }
+
+            ctx.restore();
+        }
+
+        /********************************************************************
+         * 14. MENU UI BUILDERS & AFTER-ROUND LEVELING SYSTEM
+         ********************************************************************/
+        function switchMenuTab(tab) {
+            currentMenuTab = tab;
+            document.getElementById('tabContentPlay').classList.toggle('hidden', tab !== 'play');
+            document.getElementById('tabContentShop').classList.toggle('hidden', tab !== 'shop');
+            document.getElementById('tabContentGrimoire').classList.toggle('hidden', tab !== 'grimoire');
+
+            document.querySelectorAll('#menuTabsContainer button').forEach(btn => {
+                const isTarget = btn.getAttribute('data-nav') === `tab-${tab}`;
+                btn.className = `menu-nav card-transition px-5 py-2.5 rounded-xl font-extrabold text-sm sm:text-base border ${
+                    isTarget ? 'bg-red-700 text-white border-red-400' : 'bg-gray-900 text-gray-300 border-gray-700'
+                }`;
+            });
+            renderMenuUI();
+            refreshUIFocus(true);
+        }
+
+        function renderMenuUI() {
+            document.getElementById('menuTotalCoins').textContent = saveData.coins;
+
+            // 1. Character Grid (2 Starter + 8 Unlockable)
+            const charGrid = document.getElementById('characterGrid');
+            charGrid.innerHTML = '';
+            CHARACTERS_DB.forEach(c => {
+                const unlocked = saveData.unlockedChars.includes(c.id);
+                const selected = saveData.selectedChar === c.id;
+                const wDef = WEAPONS_DB.find(w => w.id === c.weapon);
+
+                const btn = document.createElement('button');
+                btn.className = `menu-nav card-transition p-3 rounded-xl border-2 flex flex-col items-center text-center gap-1 relative ${
+                    selected ? 'bg-red-950/80 border-amber-400' :
+                    unlocked ? 'bg-gray-950/80 border-gray-700 hover:border-gray-500' :
+                    'bg-gray-950/40 border-gray-800 opacity-75'
+                }`;
+                btn.innerHTML = `
+                    <div class="text-3xl">${c.icon}</div>
+                    <div class="font-bold text-xs text-white truncate w-full">${c.name}</div>
+                    <div class="text-[10px] ${unlocked ? 'text-emerald-400' : 'text-amber-400'} font-extrabold">
+                        ${unlocked ? `${wDef?.icon || ''} Ready` : `🔒 ${c.cost} 🪙`}
+                    </div>
+                `;
+                btn.onclick = () => {
+                    sfx.play('ui');
+                    saveData.selectedChar = c.id;
+                    renderMenuUI();
+                };
+                charGrid.appendChild(btn);
+            });
+
+            // Selected Hero Details
+            const selChar = CHARACTERS_DB.find(c => c.id === saveData.selectedChar) || CHARACTERS_DB[0];
+            const isCharUnlocked = saveData.unlockedChars.includes(selChar.id);
+            const startWep = WEAPONS_DB.find(w => w.id === selChar.weapon);
+            document.getElementById('selectedHeroPanel').innerHTML = `
+                <div class="flex items-center gap-3">
+                    <div class="w-14 h-14 rounded-2xl bg-gray-950 border border-amber-500/60 flex items-center justify-center text-3xl">${selChar.icon}</div>
+                    <div>
+                        <div class="font-gothic text-xl font-black text-white">${selChar.name}</div>
+                        <div class="text-xs text-amber-400 font-semibold">${selChar.bonusText}</div>
+                    </div>
+                </div>
+                <div class="mt-2 p-2.5 rounded-xl bg-gray-950/90 border border-gray-800 flex items-center gap-2.5 text-xs">
+                    <span class="text-2xl">${startWep?.icon}</span>
+                    <div>
+                        <div class="font-bold text-gray-200">Starts with: ${startWep?.name}</div>
+                        <div class="text-gray-400 text-[11px]">${startWep?.desc}</div>
+                    </div>
+                </div>
+            `;
+
+            // 2. Game Mode List
+            const modeList = document.getElementById('modeList');
+            modeList.innerHTML = '';
+            GAME_MODES_DB.forEach(m => {
+                const unlocked = saveData.unlockedModes.includes(m.id);
+                const selected = saveData.selectedMode === m.id;
+                const btn = document.createElement('button');
+                btn.className = `menu-nav card-transition p-2.5 rounded-xl border text-left flex justify-between items-center ${
+                    selected ? 'bg-indigo-950/85 border-amber-400' : 'bg-gray-950/75 border-gray-800'
+                }`;
+                btn.innerHTML = `
+                    <div class="flex items-center gap-2.5">
+                        <span class="text-xl">${m.icon}</span>
+                        <div>
+                            <div class="text-xs font-extrabold text-white">${m.name}</div>
+                            <div class="text-[10px] text-gray-400">${m.desc}</div>
+                        </div>
+                    </div>
+                    <span class="text-xs font-black ${unlocked ? 'text-emerald-400' : 'text-amber-400'} ml-2 whitespace-nowrap">
+                        ${unlocked ? (selected ? '✓ ACTIVE' : 'SELECT') : `🔒 ${m.cost} 🪙`}
+                    </span>
+                `;
+                btn.onclick = () => {
+                    sfx.play('ui');
+                    if (unlocked) {
+                        saveData.selectedMode = m.id;
+                    } else if (saveData.coins >= m.cost) {
+                        saveData.coins -= m.cost;
+                        saveData.unlockedModes.push(m.id);
+                        saveData.selectedMode = m.id;
+                        sfx.play('coin');
+                        triggerSave();
+                    }
+                    renderMenuUI();
+                };
+                modeList.appendChild(btn);
+            });
+
+            // Update Start / Unlock Hero Button
+            const startBtn = document.getElementById('startRunBtn');
+            if (isCharUnlocked) {
+                startBtn.textContent = `⚔️ ENTER THE GRAVEYARD (${selChar.name})`;
+                startBtn.className = 'menu-nav card-transition w-full py-3.5 rounded-xl font-gothic font-black text-base sm:text-lg tracking-wider bg-gradient-to-r from-red-700 via-rose-600 to-amber-600 text-white border border-amber-300 shadow-lg';
+            } else {
+                startBtn.textContent = `🔓 UNLOCK ${selChar.name.toUpperCase()} (${selChar.cost} 🪙)`;
+                startBtn.className = `menu-nav card-transition w-full py-3.5 rounded-xl font-gothic font-black text-base sm:text-lg tracking-wider ${
+                    saveData.coins >= selChar.cost ? 'bg-amber-500 text-gray-950 border border-yellow-200' : 'bg-gray-800 text-gray-400 border border-gray-700'
+                }`;
+            }
+
+            // 3. Meta Shop Grid (After-Round Leveling Up System)
+            const shopGrid = document.getElementById('metaShopGrid');
+            shopGrid.innerHTML = '';
+            META_SHOP_DB.forEach(item => {
+                const lv = saveData.metaLevels[item.id] || 0;
+                const cost = item.baseCost * (lv + 1);
+                const isMax = lv >= item.maxLv;
+
+                const btn = document.createElement('button');
+                btn.className = `menu-nav card-transition p-3.5 rounded-xl border text-left flex flex-col justify-between gap-2 ${
+                    isMax ? 'bg-emerald-950/40 border-emerald-600/60' : 'bg-gray-950/90 border-gray-800 hover:border-amber-500'
+                }`;
+                btn.innerHTML = `
+                    <div>
+                        <div class="flex justify-between items-center">
+                            <span class="text-2xl">${item.icon}</span>
+                            <span class="text-xs font-black text-amber-400">Rank ${lv} / ${item.maxLv}</span>
+                        </div>
+                        <div class="font-bold text-sm text-white mt-1">${item.name}</div>
+                        <div class="text-[11px] text-gray-400 mt-0.5">${item.desc}</div>
+                    </div>
+                    <div class="pt-2 border-t border-gray-800 text-xs font-extrabold ${isMax ? 'text-emerald-400' : (saveData.coins >= cost ? 'text-amber-300' : 'text-gray-500')}">
+                        ${isMax ? '★ MAX RANK' : `Upgrade: ${cost} 🪙`}
+                    </div>
+                `;
+                btn.onclick = () => {
+                    if (!isMax && saveData.coins >= cost) {
+                        saveData.coins -= cost;
+                        saveData.metaLevels[item.id] = lv + 1;
+                        sfx.play('levelup');
+                        triggerSave();
+                        renderMenuUI();
+                    }
+                };
+                shopGrid.appendChild(btn);
+            });
+
+            // 4. Evolution Grimoire
+            const evoGrid = document.getElementById('grimoireEvolutionsGrid');
+            if (evoGrid && evoGrid.children.length === 0) {
+                Object.values(EVOLUTIONS_DB).forEach(evo => {
+                    const baseW = WEAPONS_DB.find(w => w.id === evo.baseId);
+                    const catP = PASSIVES_DB.find(p => p.id === evo.passiveId);
+                    const div = document.createElement('div');
+                    div.className = 'p-3 rounded-xl bg-gray-950/90 border border-amber-500/40 flex items-center justify-between gap-2';
+                    div.innerHTML = `
+                        <div class="flex items-center gap-2 text-xs">
+                            <span class="text-2xl">${baseW?.icon}</span>
+                            <span>+</span>
+                            <span class="text-2xl">${catP?.icon}</span>
+                            <span>➔</span>
+                            <span class="text-2xl">${evo.icon}</span>
+                            <div class="ml-1">
+                                <div class="font-bold text-amber-300">${evo.name}</div>
+                                <div class="text-[11px] text-gray-400">${baseW?.name} (Lv 5) + ${catP?.name}</div>
+                            </div>
+                        </div>
+                    `;
+                    evoGrid.appendChild(div);
+                });
+
+                const allGrid = document.getElementById('grimoireAllItemsGrid');
+                [...WEAPONS_DB, ...PASSIVES_DB].forEach(it => {
+                    const d = document.createElement('div');
+                    d.className = 'p-2 rounded-lg bg-gray-950 border border-gray-800 flex items-center gap-2';
+                    d.innerHTML = `<span class="text-lg">${it.icon}</span><div class="truncate font-semibold text-gray-200">${it.name}</div>`;
+                    allGrid.appendChild(d);
+                });
+            }
+        }
+
+        function refundAllMetaUpgrades() {
+            let refunded = 0;
+            META_SHOP_DB.forEach(item => {
+                const lv = saveData.metaLevels[item.id] || 0;
+                for (let i = 0; i < lv; i++) {
+                    refunded += item.baseCost * (i + 1);
+                }
+                saveData.metaLevels[item.id] = 0;
+            });
+            if (refunded > 0) {
+                saveData.coins += refunded;
+                sfx.play('coin');
+                triggerSave();
+                renderMenuUI();
+            }
+        }
+
+        function handleStartOrUnlockButton() {
+            const selChar = CHARACTERS_DB.find(c => c.id === saveData.selectedChar) || CHARACTERS_DB[0];
+            if (saveData.unlockedChars.includes(selChar.id)) {
+                startNewRun();
+            } else if (saveData.coins >= selChar.cost) {
+                saveData.coins -= selChar.cost;
+                saveData.unlockedChars.push(selChar.id);
+                sfx.play('levelup');
+                triggerSave();
+                renderMenuUI();
+            }
+        }
+
+        /********************************************************************
+         * 15. RUN LIFECYCLE (START, PAUSE, GAME OVER & ALTAR TRANSITION)
+         ********************************************************************/
+        function startNewRun() {
+            sfx.init();
+            generateGraveyardWorld();
+            game.modeConfig = GAME_MODES_DB.find(m => m.id === saveData.selectedMode) || GAME_MODES_DB[0];
+            game.time = 0;
+            game.kills = 0;
+            game.runCoins = 0;
+            game.rerollsUsed = 0;
+            game.bossSpawnTimer = game.modeConfig.id === 'boss_rush' ? 35 : 55;
+            game.enemies = [];
+            game.projectiles = [];
+            game.meleeSlashes = [];
+            game.groundPools = [];
+            game.gems = [];
+            game.floatingTexts = [];
+            game.player = createPlayer(saveData.selectedChar);
+            game.state = 'playing';
+
+            document.getElementById('hudModeBadge').textContent = game.modeConfig.name;
+            document.getElementById('mainMenuModal').classList.add('hidden');
+            document.getElementById('runSummaryModal').classList.add('hidden');
+            document.getElementById('hud').classList.remove('hidden');
+            renderHUDIcons();
+            updateHUDMetrics();
+        }
+
+        function togglePauseGame(pause) {
+            if (pause && game.state === 'playing') {
+                game.state = 'paused';
+                showRunSummaryModal(false);
+            } else if (!pause && game.state === 'paused') {
+                game.state = 'playing';
+                document.getElementById('runSummaryModal').classList.add('hidden');
+            }
+        }
+
+        document.getElementById('pauseBtnHud').onclick = () => {
+            if (game.state === 'playing') togglePauseGame(true);
+        };
+
+        function triggerGameOver() {
+            game.state = 'gameover';
+            // Survival bonus coins
+            const survivalBonus = Math.floor(game.time / 20);
+            if (survivalBonus > 0) {
+                game.runCoins += survivalBonus;
+                saveData.coins += survivalBonus;
+                triggerSave();
+            }
+            showRunSummaryModal(true);
+        }
+
+        function showRunSummaryModal(isGameOver) {
+            const modal = document.getElementById('runSummaryModal');
+            modal.classList.remove('hidden');
+            document.getElementById('summaryTitle').textContent = isGameOver ? 'YOU FELL IN THE GRAVEYARD' : 'GAME PAUSED';
+            document.getElementById('summarySubtitle').textContent = isGameOver
+                ? 'Spend your looted coins at the Altar of Blood to grow stronger!'
+                : 'Take a breath, Survivor. Your weapons and relics await.';
+
+            document.getElementById('resumeRunBtn').classList.toggle('hidden', isGameOver);
+
+            const mins = String(Math.floor(game.time / 60)).padStart(2, '0');
+            const secs = String(Math.floor(game.time % 60)).padStart(2, '0');
+            document.getElementById('summaryStatsGrid').innerHTML = `
+                <div class="p-3 rounded-xl bg-gray-900 border border-gray-800">
+                    <div class="text-xs text-gray-400">Time Survived</div>
+                    <div class="text-xl font-black text-white">${mins}:${secs}</div>
+                </div>
+                <div class="p-3 rounded-xl bg-gray-900 border border-gray-800">
+                    <div class="text-xs text-gray-400">Level Reached</div>
+                    <div class="text-xl font-black text-indigo-400">LV ${game.player.level}</div>
+                </div>
+                <div class="p-3 rounded-xl bg-gray-900 border border-gray-800">
+                    <div class="text-xs text-gray-400">Monsters Slain</div>
+                    <div class="text-xl font-black text-red-400">${game.kills} 💀</div>
+                </div>
+                <div class="p-3 rounded-xl bg-gray-900 border border-gray-800">
+                    <div class="text-xs text-gray-400">Coins Looted (Total)</div>
+                    <div class="text-xl font-black text-amber-400">+${game.runCoins} 🪙 (${saveData.coins})</div>
+                </div>
+            `;
+            refreshUIFocus(true);
+        }
+
+        function endRunAndOpenAltar() {
+            document.getElementById('runSummaryModal').classList.add('hidden');
+            document.getElementById('hud').classList.add('hidden');
+            document.getElementById('mainMenuModal').classList.remove('hidden');
+            game.state = 'menu';
+            switchMenuTab('shop');
+        }
+
+        function returnToMainMenu() {
+            document.getElementById('runSummaryModal').classList.add('hidden');
+            document.getElementById('hud').classList.add('hidden');
+            document.getElementById('mainMenuModal').classList.remove('hidden');
+            game.state = 'menu';
+            switchMenuTab('play');
+        }
+
+        /********************************************************************
+         * 16. MAIN 60FPS ANIMATION LOOP
+         ********************************************************************/
+        let lastFrameTime = performance.now();
+
+        function gameLoop(now) {
+            const dt = Math.min(0.05, (now - lastFrameTime) / 1000);
+            lastFrameTime = now;
+
+            pollGamepadAndInputs(now);
+
+            if (game.state === 'playing') {
+                updateSimulation(dt);
+                renderGame();
+            } else if (game.player) {
+                renderGame();
+            }
+
+            requestAnimationFrame(gameLoop);
+        }
+
+        window.onload = function() {
+            generateGraveyardWorld();
+            game.player = createPlayer('antonio');
+            renderMenuUI();
+            refreshUIFocus(true);
+            requestAnimationFrame(gameLoop);
+        };
+    </script>
+
+    <button id="pwaFullscreenBtn" type="button" aria-label="Enter fullscreen">⛶ Fullscreen</button>
+    <script>
+      (function () {
+        const btn = document.getElementById('pwaFullscreenBtn');
+        const isFullscreen = () => document.fullscreenElement || document.webkitFullscreenElement;
+        function update() { btn.textContent = isFullscreen() ? '⛶ Exit fullscreen' : '⛶ Fullscreen'; }
+        btn.addEventListener('click', async () => {
+          try {
+            if (isFullscreen()) {
+              if (document.exitFullscreen) await document.exitFullscreen();
+              else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
+            } else {
+              const el = document.documentElement;
+              if (el.requestFullscreen) await el.requestFullscreen();
+              else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen();
+              if (screen.orientation && screen.orientation.lock) {
+                try { await screen.orientation.lock('landscape'); } catch (e) {}
+              }
+            }
+          } catch (e) {}
+          update();
+        });
+        document.addEventListener('fullscreenchange', update);
+        document.addEventListener('webkitfullscreenchange', update);
+        if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
+          window.addEventListener('load', () => navigator.serviceWorker.register('./service-worker.js').catch(() => {}));
+        }
+      })();
+    </script>
+</body>
+</html>

@@ -1,0 +1,23 @@
+{
+  "name": "Graveyard Survivors: Blood & Relics",
+  "short_name": "Graveyard Survivors",
+  "description": "A gothic survival action game.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "fullscreen",
+  "display_override": [
+    "fullscreen",
+    "standalone"
+  ],
+  "orientation": "landscape",
+  "background_color": "#090d0a",
+  "theme_color": "#090d0a",
+  "icons": [
+    {
+      "src": "./icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
